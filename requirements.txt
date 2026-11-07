@@ -1,0 +1,6 @@
+numpy
+pandas
+rasterio
+h3>=4
+requests
+geopandas

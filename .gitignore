@@ -1,0 +1,6 @@
+# tuiles Hansen (100 Go en tout) et resultats intermediaires : on les regenere avec le pipeline
+/data/
+web/node_modules/
+web/dist/
+__pycache__/
+*.part
