@@ -4,3 +4,4 @@ rasterio
 h3>=4
 requests
 geopandas
+shapely>=2

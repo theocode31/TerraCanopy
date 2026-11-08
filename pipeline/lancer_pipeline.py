@@ -1,18 +1,3 @@
-"""
-Telecharge les tuiles Hansen une par une, les agrege en hexagones, puis les supprime.
-
-Toute la planete fait environ 100 Go de tuiles (lossyear + treecover2000), donc on ne
-garde jamais plus de deux tuiles sur le disque : celle qu'on traite et la suivante,
-qui se telecharge pendant ce temps.
-
-On commence par les tropiques, ou se trouve l'essentiel de la deforestation : si le
-calcul s'arrete en route, la carte a deja le plus important.
-Le script reprend ou il s'est arrete (les tuiles deja faites sont sautees).
-
-Lancer depuis la racine du projet :
-    python pipeline/lancer_pipeline.py
-    python pipeline/lancer_pipeline.py 00N_060W 10S_060W   (seulement ces tuiles)
-"""
 import shutil
 import sys
 import time
@@ -27,12 +12,11 @@ VERSION = "GFC-2025-v1.13"
 BASE_URL = f"https://storage.googleapis.com/earthenginepartners-hansen/{VERSION}"
 RACINE = Path(__file__).resolve().parent.parent
 DOSSIER_TUILES = RACINE / "data" / "tuiles_tmp"
-DOSSIER_H3 = RACINE / "data" / "h3_par_tuile"
+DOSSIER_H3 = RACINE / "data" / "h3_res6_par_tuile"
 ESPACE_MIN_GO = 3.0
 
 
 def lister_tuiles() -> list[str]:
-    """Les tuiles qui ont une couche lossyear (279 sur 504 : le reste est de l'ocean)."""
     r = requests.get(f"{BASE_URL}/lossyear.txt", timeout=60)
     r.raise_for_status()
     tuiles = [ligne.strip().rsplit("_lossyear_", 1)[1].removesuffix(".tif")
@@ -81,7 +65,7 @@ def main() -> None:
     DOSSIER_TUILES.mkdir(parents=True, exist_ok=True)
     DOSSIER_H3.mkdir(parents=True, exist_ok=True)
     tuiles = sys.argv[1:] or lister_tuiles()
-    a_faire = [t for t in tuiles if not (DOSSIER_H3 / f"{t}.csv").exists()]
+    a_faire = [t for t in tuiles if not (DOSSIER_H3 / f"{t}.csv.gz").exists()]
     print(f"{len(tuiles)} tuiles, {len(tuiles) - len(a_faire)} deja faites, {len(a_faire)} a faire", flush=True)
 
     echecs = []
@@ -108,7 +92,7 @@ def main() -> None:
                 df, max_annee = agreger_tuile(perte, couvert)
                 if max_annee > NB_ANNEES:
                     print(f"  attention : lossyear monte a {max_annee} dans {tuile}", flush=True)
-                df.to_csv(DOSSIER_H3 / f"{tuile}.csv", index=False)
+                df.round(3).to_csv(DOSSIER_H3 / f"{tuile}.csv.gz", index=False)
                 print(f"[{i + 1}/{len(a_faire)}] {tuile} : {len(df)} hexagones, "
                       f"foret 2000 = {df.foret_2000.sum() / 1e6:.2f} Mha, {time.time() - debut:.0f} s "
                       f"(total {(time.time() - debut_total) / 60:.0f} min, {espace_libre_go():.1f} Go libres)", flush=True)
