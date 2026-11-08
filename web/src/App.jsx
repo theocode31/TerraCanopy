@@ -17,8 +17,8 @@ import { couleur, hauteur, echellePeriode, seuilsPour, FACTEUR_MIN, FACTEUR_MAX,
 import Panneau from './Panneau.jsx';
 
 const VUE_GLOBE = new GlobeView({ id: 'globe', resolution: 5 });
-const OCEAN = [14, 34, 56];
-const TERRE = [43, 48, 46];
+const OCEAN = [16, 52, 88];
+const TERRE = [32, 48, 62];
 const MONDE = [[[-180, 90], [0, 90], [180, 90], [180, -90], [0, -90], [-180, -90]]];
 const ARETE_KM = { 2: 182.5, 3: 69.0, 4: 26.07, 5: 9.85, 6: 3.72 }; // cote moyen des hexagones H3 (h3 4.5, average_hexagon_edge_length)
 const ARETE_MIN_PX = 3; // on prend la resolution la plus fine dont les hexagones font au moins ca a l'ecran
@@ -103,6 +103,45 @@ function bordDuGlobe(viewport) {
   return { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, rx: (x1 - x0) / 2, ry: (y1 - y0) / 2 };
 }
 
+// viseur autour du globe : un anneau gradue tous les 5 degres, qui tourne avec l'orientation de la
+// vue (N en haut quand le nord est en haut), et deux arcs qui balaient le bord
+const CAPS = { 0: 'N', 90: 'E', 180: 'S', 270: 'O' };
+
+function Viseur({ bord, taille, orientation, opacite }) {
+  if (!bord || !taille || !(opacite > 0)) return null;
+  const { cx, cy, rx, ry } = bord;
+  const point = (deg, k) => {
+    const t = ((deg - orientation) * Math.PI) / 180;
+    return [cx + rx * k * Math.sin(t), cy - ry * k * Math.cos(t)];
+  };
+  const k0 = 1.05;
+  const graduations = [];
+  for (let a = 0; a < 360; a += 5) {
+    const longue = a % 30 === 0;
+    const [x1, y1] = point(a, k0);
+    const [x2, y2] = point(a, k0 + (longue ? 0.03 : 0.012));
+    graduations.push(<line key={a} x1={x1} y1={y1} x2={x2} y2={y2} className={longue ? 'grad-longue' : 'grad'} />);
+  }
+  const etiquettes = [];
+  for (let a = 0; a < 360; a += 30) {
+    const [x, y] = point(a, k0 + 0.075);
+    etiquettes.push(
+      <text key={a} x={x} y={y} className={CAPS[a] ? 'cap' : 'degre'} textAnchor="middle" dominantBaseline="central">
+        {CAPS[a] ?? String(a).padStart(3, '0')}
+      </text>,
+    );
+  }
+  return (
+    <svg className="viseur" width={taille.largeur} height={taille.hauteur} style={{ opacity: opacite }} aria-hidden="true">
+      <ellipse cx={cx} cy={cy} rx={rx * k0} ry={ry * k0} className="anneau" />
+      <ellipse cx={cx} cy={cy} rx={rx * 1.022} ry={ry * 1.022} className="balayage" pathLength="1000" />
+      <ellipse cx={cx} cy={cy} rx={rx * 1.022} ry={ry * 1.022} className="balayage retour" pathLength="1000" />
+      {graduations}
+      {etiquettes}
+    </svg>
+  );
+}
+
 function Etoiles({ taille }) {
   const ref = useRef(null);
   useEffect(() => {
@@ -115,7 +154,7 @@ function Etoiles({ taille }) {
     ctx.scale(dpr, dpr);
     let graine = 7; // toujours le meme ciel
     const hasard = () => (graine = (graine * 16807) % 2147483647) / 2147483647;
-    const n = Math.round((taille.largeur * taille.hauteur) / 2600);
+    const n = Math.round((taille.largeur * taille.hauteur) / 3600);
     for (let i = 0; i < n; i++) {
       const x = hasard() * taille.largeur;
       const y = hasard() * taille.hauteur;
@@ -141,7 +180,7 @@ function infobulle(d, donnees, debut, fin) {
     .map((p, k) => {
       const h = Math.max(1, (26 * p) / max);
       const dans = k >= debut && k <= fin;
-      return `<rect x="${k * 6}" y="${28 - h}" width="4.5" height="${h}" fill="${dans ? '#f08a3c' : '#3a414c'}"/>`;
+      return `<rect x="${k * 6}" y="${28 - h}" width="4.5" height="${h}" fill="${dans ? '#fa9512' : '#34506a'}"/>`;
     })
     .join('');
   const p = perte(d, debut, fin);
@@ -293,9 +332,9 @@ export default function App() {
     lumiere.soleil.direction = l.map((x) => -x / nl);
   }
   const montrerBord = bord && taille && bord.rx < 4 * Math.max(taille.largeur, taille.hauteur);
-  // le voile d'ombre sur le globe s'efface quand on s'approche, sinon il ternit les couleurs
-  const opaciteVoile = montrerBord
-    ? Math.min(1, Math.max(0, (0.8 * Math.max(taille.largeur, taille.hauteur) - bord.rx) / (0.3 * Math.max(taille.largeur, taille.hauteur))))
+  // le viseur s'efface quand on s'approche : le globe deborde de l'ecran et l'anneau n'a plus de sens
+  const opaciteViseur = montrerBord
+    ? Math.min(1, Math.max(0, (1.1 * Math.max(taille.largeur, taille.hauteur) - bord.rx) / (0.4 * Math.max(taille.largeur, taille.hauteur))))
     : 0;
 
   const resolution = vue ? choisirResolution(vue) : 2;
@@ -343,7 +382,7 @@ export default function App() {
           id: 'grille',
           data: GRILLE,
           getPath: (d) => d.path,
-          getColor: [120, 160, 210, 34],
+          getColor: [94, 231, 255, 46],
           getWidth: 1,
           widthUnits: 'pixels',
         }),
@@ -366,7 +405,7 @@ export default function App() {
           material: { ambient: 0.55, diffuse: 0.5, shininess: 8, specularColor: [10, 10, 10] },
           pickable: true,
           autoHighlight: true,
-          highlightColor: [255, 255, 255, 70],
+          highlightColor: [94, 231, 255, 120],
           updateTriggers: { getFillColor: [mesure, debut, fin], getElevation: [mesure, debut, fin, arete] },
         }),
         new GeoJsonLayer({
@@ -374,7 +413,7 @@ export default function App() {
           data: donnees.terres,
           filled: false,
           stroked: true,
-          getLineColor: [175, 190, 205, 70],
+          getLineColor: [150, 225, 255, 75],
           lineWidthMinPixels: 0.6,
         }),
       ]
@@ -419,12 +458,6 @@ export default function App() {
     <div className="appli">
       <main className="carte" ref={carte}>
         <Etoiles taille={taille} />
-        {montrerBord && (
-          <div
-            className="atmosphere"
-            style={{ left: bord.cx - 1.25 * bord.rx, top: bord.cy - 1.25 * bord.ry, width: 2.5 * bord.rx, height: 2.5 * bord.ry }}
-          />
-        )}
         {vue && (
           <DeckGL
             views={VUE_GLOBE}
@@ -439,12 +472,14 @@ export default function App() {
             getTooltip={({ object }) => (donnees ? infobulle(object, donnees, debut, fin) : null)}
           />
         )}
-        {opaciteVoile > 0 && (
-          <div
-            className="eclairage"
-            style={{ left: bord.cx - bord.rx, top: bord.cy - bord.ry, width: 2 * bord.rx, height: 2 * bord.ry, opacity: opaciteVoile }}
-          />
+        {/* bord du globe : un trait fin et une lueur courte, a la place de l'ancien halo */}
+        {montrerBord && (
+          <div className="bord-globe" style={{ left: bord.cx - bord.rx, top: bord.cy - bord.ry, width: 2 * bord.rx, height: 2 * bord.ry }} />
         )}
+        <Viseur bord={montrerBord ? bord : null} taille={taille} orientation={vue ? vue.bearing : 0} opacite={opaciteViseur} />
+        <div className="cadre" aria-hidden="true">
+          <span className="hg" /><span className="hd" /><span className="bg" /><span className="bd" />
+        </div>
         <Panneau
           donnees={donnees}
           erreur={erreur}
@@ -457,6 +492,7 @@ export default function App() {
           lecture={lecture}
           lancerLecture={lancerLecture}
           resolution={affiche.r}
+          position={vue}
           relief={relief}
           basculerRelief={basculerRelief}
           facteur={facteur}

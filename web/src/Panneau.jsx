@@ -2,13 +2,17 @@ import React, { useRef, useState } from 'react';
 import { sommePeriode, formaterHa, formaterPart } from './donnees.js';
 import { CLASSES, echellePeriode, seuilsPour, FACTEUR_MIN, FACTEUR_MAX } from './couleurs.js';
 
+// ce que montrent les couleurs du globe ; le choix se fait au-dessus de la legende
 const MESURES = [
-  { cle: 'perte', nom: 'perte', legende: 'Surface perdue sur la période, en % de la surface de l’hexagone' },
-  { cle: 'part', nom: 'part de la forêt perdue', legende: 'Perte de la période, en % de la forêt de 2000' },
-  { cle: 'foret', nom: 'forêt en 2000', legende: 'Couvert arboré de plus de 30 % en 2000, en % de la surface' },
+  { cle: 'perte', nom: 'perte' },
+  { cle: 'part', nom: 'part perdue' },
+  { cle: 'foret', nom: 'forêt 2000' },
 ];
 
-const COTE_KM = { 2: 183, 3: 69, 4: 26, 5: 9.9, 6: 3.7 };
+// releve de position en haut a droite : 10,60° S · 62,80° O
+function coordonnee(v, plus, moins) {
+  return `${Math.abs(v).toFixed(2).replace('.', ',')}° ${v >= 0 ? plus : moins}`;
+}
 const DEPOT = 'https://github.com/theocode31/TerraCanopy';
 const ANNEES_REPERES = [2001, 2005, 2010, 2015, 2020, 2025];
 
@@ -53,7 +57,7 @@ function Frise({ annees, pertes, debut, fin, setPeriode, cumul, choisirCumul, le
             <span className="sep"> · </span>
             <button aria-pressed={cumul} onClick={() => choisirCumul(true)}>cumul depuis {annees[0]}</button>
           </span>
-          <button className="frise-lecture" onClick={lancerLecture}>{lecture ? '❚❚ pause' : '▶ voir la perte s’accumuler'}</button>
+          <button className="puce frise-lecture" aria-pressed={lecture} onClick={lancerLecture}>{lecture ? '❚❚ pause' : '▶ voir la perte s’accumuler'}</button>
         </div>
         <span className="frise-info">
           {k !== null
@@ -99,7 +103,7 @@ function Frise({ annees, pertes, debut, fin, setPeriode, cumul, choisirCumul, le
   );
 }
 
-function Legende({ mesure, resolution, annees, debut, fin, cumul }) {
+function Legende({ mesure, setMesure, annees, debut, fin, cumul }) {
   const { couleurs } = CLASSES[mesure];
   const echelle = cumul ? 1 : echellePeriode(mesure, fin - debut + 1, annees.length);
   const seuils = seuilsPour(mesure, echelle);
@@ -107,10 +111,15 @@ function Legende({ mesure, resolution, annees, debut, fin, cumul }) {
   const texte = {
     perte: `Surface perdue ${quand}, en % de la surface de l’hexagone`,
     part: `Perte ${quand}, en % de la forêt de 2000`,
-    foret: MESURES[2].legende,
+    foret: 'Couvert arboré de plus de 30 % en 2000, en % de la surface',
   }[mesure];
   return (
     <div className="legende">
+      <div className="couches" role="group" aria-label="Ce que montrent les couleurs">
+        {MESURES.map((m) => (
+          <button key={m.cle} aria-pressed={mesure === m.cle} onClick={() => setMesure(m.cle)}>{m.nom}</button>
+        ))}
+      </div>
       <div className="legende-barre">
         {couleurs.map((c) => <span key={c} style={{ background: c }} />)}
       </div>
@@ -122,17 +131,15 @@ function Legende({ mesure, resolution, annees, debut, fin, cumul }) {
       </div>
       <p>
         {texte}.
-        {cumul && mesure !== 'foret' && ' Seuils fixes, ceux des 25 ans : la carte s’allume à mesure que la perte s’accumule.'}
         {!cumul && echelle < 1 && ' Les seuils suivent la durée de la période.'}
       </p>
-      <p>Hexagones d’environ {String(COTE_KM[resolution]).replace('.', ',')} km de côté, plus fins quand on zoome.</p>
     </div>
   );
 }
 
 export default function Panneau({
   donnees, erreur, mesure, setMesure, periode, setPeriode, cumul, choisirCumul, lecture, lancerLecture, resolution,
-  relief, basculerRelief, facteur, setFacteur, revenirAuGlobe, chargement, allerVers,
+  position, relief, basculerRelief, facteur, setFacteur, revenirAuGlobe, chargement, allerVers,
 }) {
   const [ouvert, setOuvert] = useState(null); // 'pays', 'apropos' ou null
   const [debut, fin] = periode;
@@ -158,21 +165,21 @@ export default function Panneau({
           {quand}, <em>{formaterHa(perteMonde)}</em> de couvert arboré ont disparu, soit{' '}
           <em>{formaterPart((100 * perteMonde) / resume.foret_2000)}</em> de la forêt de 2000.
         </p>
-        <p className="mesures">
-          Sur le globe :{' '}
-          {MESURES.map((m, i) => (
-            <React.Fragment key={m.cle}>
-              {i > 0 && <span className="sep"> · </span>}
-              <button aria-pressed={mesure === m.cle} onClick={() => setMesure(m.cle)}>{m.nom}</button>
-            </React.Fragment>
-          ))}
-        </p>
       </header>
 
       <nav className="actions">
-        {chargement && <span className="charge">chargement…</span>}
-        <button aria-pressed={relief} onClick={basculerRelief}>{relief ? 'vue à plat' : 'relief 3D'}</button>
-        <button onClick={revenirAuGlobe}>tout le globe</button>
+        <div className="actions-boutons">
+          {chargement && <span className="charge">chargement</span>}
+          <button className="puce" aria-pressed={relief} onClick={basculerRelief}>{relief ? 'vue à plat' : 'relief 3D'}</button>
+          <button className="puce" onClick={revenirAuGlobe}>tout le globe</button>
+        </div>
+        <div className="console">
+        {position && (
+          <p className="releve">
+            <b>{coordonnee(position.latitude, 'N', 'S')}</b> · <b>{coordonnee(((position.longitude + 540) % 360) - 180, 'E', 'O')}</b>
+            {' '}· zoom <b>{position.zoom.toFixed(1).replace('.', ',')}</b> · H3 <b>r{resolution}</b>
+          </p>
+        )}
         {relief && (
           <div className="options-relief">
             <label className="hauteur">
@@ -189,11 +196,12 @@ export default function Panneau({
             <p className="astuce">clic droit et glisser pour tourner autour</p>
           </div>
         )}
+        </div>
       </nav>
 
       <div className="bas">
         <div className="bas-ligne">
-          <Legende mesure={mesure} resolution={resolution} annees={annees} debut={debut} fin={fin} cumul={cumul} />
+          <Legende mesure={mesure} setMesure={setMesure} annees={annees} debut={debut} fin={fin} cumul={cumul} />
           <div className="liens">
             <button aria-expanded={ouvert === 'pays'} onClick={() => basculer('pays')}>Les dix pays qui ont le plus perdu</button>
             <button aria-expanded={ouvert === 'apropos'} onClick={() => basculer('apropos')}>À propos des données</button>

@@ -62,6 +62,14 @@ Autre souci : quand je choisissais une seule année, presque toute la carte éta
 
 Dernier ajout de la soirée : un mode « cumul depuis 2001 ». La période part toujours de 2001, et on clique sur une année pour voir tout ce qui a été perdu jusque-là. Dans ce mode, les seuils restent ceux des 25 ans, sinon la carte garderait à peu près la même allure d'une année à l'autre. Le bouton « voir la perte s'accumuler » fait défiler les années de 2001 à 2025, une toutes les 0,7 seconde : la carte s'allume petit à petit et, en relief, les colonnes montent. J'aurais aimé un fondu entre deux années, mais la couche d'hexagones de deck.gl ne transmet pas les transitions à ses sous-couches, donc l'animation avance par à-coups, année par année.
 
+### 08/11/2026, le soir
+
+Le thème nuit restait trop sombre, et le halo autour de la Terre faisait un anneau opaque pas très beau. J'ai tout repris dans un style plus « écran de contrôle ». Le fond est un bleu nuit plus clair, avec une grille fine. Le halo est remplacé par un trait lumineux sur le bord du globe, et autour il y a un anneau gradué tous les 5 degrés, qui tourne quand on tourne la vue, avec deux arcs qui balaient le bord. En haut à droite, un relevé donne la position, le zoom et la résolution H3 affichée.
+
+Les couleurs de la carte viennent maintenant de la palette « inferno » de matplotlib, du violet au jaune pâle, et « viridis » pour la forêt de 2000. Ces palettes sont faites pour que la clarté monte régulièrement d'une classe à l'autre, et elles restent lisibles avec un daltonisme. Je ne garde que la partie haute d'inferno (de 0,3 à 1), sinon la première classe serait presque noire sur le globe. Le cyan ne sert qu'à l'interface, jamais à coder une valeur.
+
+J'ai aussi allégé le texte. Le choix de ce que montre la carte (perte, part perdue, forêt 2000) est passé du titre au-dessus de la légende, et la légende n'a plus qu'une phrase.
+
 ## Ce que montre la carte
 
 | | Ce projet | Global Forest Watch |
