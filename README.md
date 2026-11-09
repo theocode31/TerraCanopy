@@ -70,6 +70,10 @@ Les couleurs de la carte viennent maintenant de la palette « inferno » de matp
 
 J'ai aussi allégé le texte. Le choix de ce que montre la carte (perte, part perdue, forêt 2000) est passé du titre au-dessus de la légende, et la légende n'a plus qu'une phrase.
 
+### 09/11/2026
+
+Finalement le violet d'inferno pour les petites pertes ne rendait pas bien. La perte et la part perdue vont maintenant du jaune au rouge, avec 7 teintes de la palette YlOrRd de ColorBrewer. J'ai enlevé la teinte la plus pâle, presque blanche, et le bordeaux le plus sombre, qui se perdait sur le fond. La forêt de 2000 garde viridis.
+
 ## Ce que montre la carte
 
 | | Ce projet | Global Forest Watch |

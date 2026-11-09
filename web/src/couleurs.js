@@ -1,16 +1,15 @@
-// Couleurs sur fond sombre : du plus sombre (peu) au plus lumineux (beaucoup).
-// Perte : 7 teintes prises dans la palette « inferno » (van der Walt et Smith, matplotlib), du violet
-// au jaune pale, entre 0,3 et 1 de l'echelle pour que la premiere classe reste visible sur le globe.
-// Inferno est faite pour que la clarte monte reguliere, et elle se lit aussi avec un daltonisme.
-// Foret : meme principe avec « viridis », du bleu au jaune-vert.
+// Perte et part perdue : du jaune (peu) au rouge (beaucoup), 7 teintes de la palette « YlOrRd » de
+// ColorBrewer (Cynthia Brewer). On saute la teinte la plus pale, trop proche du blanc, et la plus
+// sombre, un bordeaux qui se perdait sur le fond bleu nuit.
+// Foret : « viridis » (matplotlib), du bleu au jaune-vert, entre 0,3 et 1 de l'echelle.
 // Seuils fixes et ronds plutot que des quantiles : une couleur garde le meme sens quand on zoome
 // ou qu'on se deplace, et la legende se lit directement.
-const INFERNO = ['#6a176e', '#9b2964', '#c63f4e', '#e8632a', '#fa9512', '#f7cf3c', '#fcffa4'];
+const JAUNE_ROUGE = ['#ffeda0', '#fed976', '#feb24c', '#fd8d3c', '#fc4e2a', '#e31a1c', '#bd0026'];
 const VIRIDIS = ['#355f8d', '#2a7b8e', '#20968b', '#29af7f', '#55c667', '#95d840', '#fde725'];
 
 export const CLASSES = {
-  perte: { seuils: [0.5, 1.5, 4, 10, 20, 35], couleurs: INFERNO },
-  part: { seuils: [1, 2.5, 5, 10, 20, 35], couleurs: INFERNO },
+  perte: { seuils: [0.5, 1.5, 4, 10, 20, 35], couleurs: JAUNE_ROUGE },
+  part: { seuils: [1, 2.5, 5, 10, 20, 35], couleurs: JAUNE_ROUGE },
   foret: { seuils: [5, 15, 30, 50, 70, 85], couleurs: VIRIDIS },
 };
 
