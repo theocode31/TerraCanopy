@@ -17,8 +17,9 @@ import { couleur, hauteur, echellePeriode, seuilsPour, FACTEUR_MIN, FACTEUR_MAX,
 import Panneau from './Panneau.jsx';
 
 const VUE_GLOBE = new GlobeView({ id: 'globe', resolution: 5 });
-const OCEAN = [16, 52, 88];
-const TERRE = [32, 48, 62];
+// couleurs claires de carte imprimee : ocean gris-bleu, terres beige clair
+const OCEAN = [204, 218, 226];
+const TERRE = [232, 228, 218];
 const MONDE = [[[-180, 90], [0, 90], [180, 90], [180, -90], [0, -90], [-180, -90]]];
 const ARETE_KM = { 2: 182.5, 3: 69.0, 4: 26.07, 5: 9.85, 6: 3.72 }; // cote moyen des hexagones H3 (h3 4.5, average_hexagon_edge_length)
 const ARETE_MIN_PX = 3; // on prend la resolution la plus fine dont les hexagones font au moins ca a l'ecran
@@ -50,9 +51,10 @@ function choisirResolution(vue) {
 }
 
 function zoomPourVoirLeGlobe(largeur, hauteurPx, latitude) {
-  // avec la perspective, le globe parait environ 0,71 fois plus petit que le calcul : 0,5 donne un
-  // rayon visible de ~0,36 fois le petit cote, ce qui laisse la place au titre et a la frise
-  const rayonVoulu = 0.5 * Math.min(largeur, hauteurPx);
+  // avec la perspective, le globe parait environ 0,78 fois plus petit que le calcul. On vise la
+  // moitie du petit cote, mais le bas du globe doit rester au-dessus de la bande de la frise (150 px)
+  const petit = Math.min(largeur, hauteurPx);
+  const rayonVoulu = Math.max(0.25 * petit, Math.min(0.5 * petit, (hauteurPx / 2 - 150) / 0.78));
   return Math.log2((rayonVoulu * Math.PI * Math.cos((latitude * Math.PI) / 180)) / RAYON_GLOBE);
 }
 
@@ -72,7 +74,7 @@ function paquetsVisibles(viewport, r, disponibles) {
   return [...parents].sort();
 }
 
-// contour du globe a l'ecran, pour placer l'atmosphere : le bord visible est le cercle de la
+// contour du globe a l'ecran, pour y tracer un trait fin : le bord visible est le cercle de la
 // sphere ou les rayons partant de la camera sont tangents
 function bordDuGlobe(viewport) {
   const c = viewport.cameraPosition;
@@ -103,74 +105,6 @@ function bordDuGlobe(viewport) {
   return { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, rx: (x1 - x0) / 2, ry: (y1 - y0) / 2 };
 }
 
-// viseur autour du globe : un anneau gradue tous les 5 degres, qui tourne avec l'orientation de la
-// vue (N en haut quand le nord est en haut), et deux arcs qui balaient le bord
-const CAPS = { 0: 'N', 90: 'E', 180: 'S', 270: 'O' };
-
-function Viseur({ bord, taille, orientation, opacite }) {
-  if (!bord || !taille || !(opacite > 0)) return null;
-  const { cx, cy, rx, ry } = bord;
-  const point = (deg, k) => {
-    const t = ((deg - orientation) * Math.PI) / 180;
-    return [cx + rx * k * Math.sin(t), cy - ry * k * Math.cos(t)];
-  };
-  const k0 = 1.05;
-  const graduations = [];
-  for (let a = 0; a < 360; a += 5) {
-    const longue = a % 30 === 0;
-    const [x1, y1] = point(a, k0);
-    const [x2, y2] = point(a, k0 + (longue ? 0.03 : 0.012));
-    graduations.push(<line key={a} x1={x1} y1={y1} x2={x2} y2={y2} className={longue ? 'grad-longue' : 'grad'} />);
-  }
-  const etiquettes = [];
-  for (let a = 0; a < 360; a += 30) {
-    const [x, y] = point(a, k0 + 0.075);
-    etiquettes.push(
-      <text key={a} x={x} y={y} className={CAPS[a] ? 'cap' : 'degre'} textAnchor="middle" dominantBaseline="central">
-        {CAPS[a] ?? String(a).padStart(3, '0')}
-      </text>,
-    );
-  }
-  return (
-    <svg className="viseur" width={taille.largeur} height={taille.hauteur} style={{ opacity: opacite }} aria-hidden="true">
-      <ellipse cx={cx} cy={cy} rx={rx * k0} ry={ry * k0} className="anneau" />
-      <ellipse cx={cx} cy={cy} rx={rx * 1.022} ry={ry * 1.022} className="balayage" pathLength="1000" />
-      <ellipse cx={cx} cy={cy} rx={rx * 1.022} ry={ry * 1.022} className="balayage retour" pathLength="1000" />
-      {graduations}
-      {etiquettes}
-    </svg>
-  );
-}
-
-function Etoiles({ taille }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!taille) return;
-    const toile = ref.current;
-    const dpr = window.devicePixelRatio || 1;
-    toile.width = Math.round(taille.largeur * dpr);
-    toile.height = Math.round(taille.hauteur * dpr);
-    const ctx = toile.getContext('2d');
-    ctx.scale(dpr, dpr);
-    let graine = 7; // toujours le meme ciel
-    const hasard = () => (graine = (graine * 16807) % 2147483647) / 2147483647;
-    const n = Math.round((taille.largeur * taille.hauteur) / 3600);
-    for (let i = 0; i < n; i++) {
-      const x = hasard() * taille.largeur;
-      const y = hasard() * taille.hauteur;
-      const t = hasard();
-      const r = t > 0.985 ? 1.1 : t > 0.9 ? 0.75 : 0.45;
-      const a = (0.15 + 0.6 * hasard() ** 2).toFixed(2);
-      const teinte = hasard();
-      ctx.fillStyle = teinte < 0.15 ? `rgba(255,226,190,${a})` : teinte < 0.35 ? `rgba(190,210,255,${a})` : `rgba(235,238,245,${a})`;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, 2 * Math.PI);
-      ctx.fill();
-    }
-  }, [taille]);
-  return <canvas className="etoiles" ref={ref} aria-hidden="true" />;
-}
-
 function infobulle(d, donnees, debut, fin) {
   if (!d) return null;
   const annees = donnees.resume.annees;
@@ -180,7 +114,7 @@ function infobulle(d, donnees, debut, fin) {
     .map((p, k) => {
       const h = Math.max(1, (26 * p) / max);
       const dans = k >= debut && k <= fin;
-      return `<rect x="${k * 6}" y="${28 - h}" width="4.5" height="${h}" fill="${dans ? '#fa9512' : '#34506a'}"/>`;
+      return `<rect x="${k * 6}" y="${28 - h}" width="4.5" height="${h}" fill="${dans ? '#e2401f' : '#cfc8b9'}"/>`;
     })
     .join('');
   const p = perte(d, debut, fin);
@@ -332,10 +266,6 @@ export default function App() {
     lumiere.soleil.direction = l.map((x) => -x / nl);
   }
   const montrerBord = bord && taille && bord.rx < 4 * Math.max(taille.largeur, taille.hauteur);
-  // le viseur s'efface quand on s'approche : le globe deborde de l'ecran et l'anneau n'a plus de sens
-  const opaciteViseur = montrerBord
-    ? Math.min(1, Math.max(0, (1.1 * Math.max(taille.largeur, taille.hauteur) - bord.rx) / (0.4 * Math.max(taille.largeur, taille.hauteur))))
-    : 0;
 
   const resolution = vue ? choisirResolution(vue) : 2;
 
@@ -382,7 +312,7 @@ export default function App() {
           id: 'grille',
           data: GRILLE,
           getPath: (d) => d.path,
-          getColor: [94, 231, 255, 46],
+          getColor: [70, 85, 95, 28],
           getWidth: 1,
           widthUnits: 'pixels',
         }),
@@ -405,7 +335,7 @@ export default function App() {
           material: { ambient: 0.55, diffuse: 0.5, shininess: 8, specularColor: [10, 10, 10] },
           pickable: true,
           autoHighlight: true,
-          highlightColor: [94, 231, 255, 120],
+          highlightColor: [29, 28, 26, 70],
           updateTriggers: { getFillColor: [mesure, debut, fin], getElevation: [mesure, debut, fin, arete] },
         }),
         new GeoJsonLayer({
@@ -413,7 +343,7 @@ export default function App() {
           data: donnees.terres,
           filled: false,
           stroked: true,
-          getLineColor: [150, 225, 255, 75],
+          getLineColor: [110, 105, 95, 110],
           lineWidthMinPixels: 0.6,
         }),
       ]
@@ -457,7 +387,6 @@ export default function App() {
   return (
     <div className="appli">
       <main className="carte" ref={carte}>
-        <Etoiles taille={taille} />
         {vue && (
           <DeckGL
             views={VUE_GLOBE}
@@ -472,14 +401,10 @@ export default function App() {
             getTooltip={({ object }) => (donnees ? infobulle(object, donnees, debut, fin) : null)}
           />
         )}
-        {/* bord du globe : un trait fin et une lueur courte, a la place de l'ancien halo */}
+        {/* bord du globe : un trait gris fin */}
         {montrerBord && (
           <div className="bord-globe" style={{ left: bord.cx - bord.rx, top: bord.cy - bord.ry, width: 2 * bord.rx, height: 2 * bord.ry }} />
         )}
-        <Viseur bord={montrerBord ? bord : null} taille={taille} orientation={vue ? vue.bearing : 0} opacite={opaciteViseur} />
-        <div className="cadre" aria-hidden="true">
-          <span className="hg" /><span className="hd" /><span className="bg" /><span className="bd" />
-        </div>
         <Panneau
           donnees={donnees}
           erreur={erreur}
@@ -491,8 +416,6 @@ export default function App() {
           choisirCumul={choisirCumul}
           lecture={lecture}
           lancerLecture={lancerLecture}
-          resolution={affiche.r}
-          position={vue}
           relief={relief}
           basculerRelief={basculerRelief}
           facteur={facteur}

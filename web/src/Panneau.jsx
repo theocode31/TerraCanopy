@@ -4,15 +4,11 @@ import { CLASSES, echellePeriode, seuilsPour, FACTEUR_MIN, FACTEUR_MAX } from '.
 
 // ce que montrent les couleurs du globe ; le choix se fait au-dessus de la legende
 const MESURES = [
-  { cle: 'perte', nom: 'perte' },
-  { cle: 'part', nom: 'part perdue' },
-  { cle: 'foret', nom: 'forêt 2000' },
+  { cle: 'perte', nom: 'Perte' },
+  { cle: 'part', nom: 'Part perdue' },
+  { cle: 'foret', nom: 'Forêt 2000' },
 ];
 
-// releve de position en haut a droite : 10,60° S · 62,80° O
-function coordonnee(v, plus, moins) {
-  return `${Math.abs(v).toFixed(2).replace('.', ',')}° ${v >= 0 ? plus : moins}`;
-}
 const DEPOT = 'https://github.com/theocode31/TerraCanopy';
 const ANNEES_REPERES = [2001, 2005, 2010, 2015, 2020, 2025];
 
@@ -53,11 +49,11 @@ function Frise({ annees, pertes, debut, fin, setPeriode, cumul, choisirCumul, le
         <div className="frise-gauche">
           <span className="frise-periode">{debut === fin ? annees[debut] : `${annees[debut]} – ${annees[fin]}`}</span>
           <span className="frise-modes">
-            <button aria-pressed={!cumul} onClick={() => choisirCumul(false)}>période choisie</button>
+            <button aria-pressed={!cumul} onClick={() => choisirCumul(false)}>Période choisie</button>
             <span className="sep"> · </span>
-            <button aria-pressed={cumul} onClick={() => choisirCumul(true)}>cumul depuis {annees[0]}</button>
+            <button aria-pressed={cumul} onClick={() => choisirCumul(true)}>Cumul depuis {annees[0]}</button>
           </span>
-          <button className="puce frise-lecture" aria-pressed={lecture} onClick={lancerLecture}>{lecture ? '❚❚ pause' : '▶ voir la perte s’accumuler'}</button>
+          <button className="puce frise-lecture" aria-pressed={lecture} onClick={lancerLecture}>{lecture ? '❚❚ Pause' : '▶ Voir la perte s’accumuler'}</button>
         </div>
         <span className="frise-info">
           {k !== null
@@ -138,8 +134,8 @@ function Legende({ mesure, setMesure, annees, debut, fin, cumul }) {
 }
 
 export default function Panneau({
-  donnees, erreur, mesure, setMesure, periode, setPeriode, cumul, choisirCumul, lecture, lancerLecture, resolution,
-  position, relief, basculerRelief, facteur, setFacteur, revenirAuGlobe, chargement, allerVers,
+  donnees, erreur, mesure, setMesure, periode, setPeriode, cumul, choisirCumul, lecture, lancerLecture,
+  relief, basculerRelief, facteur, setFacteur, revenirAuGlobe, chargement, allerVers,
 }) {
   const [ouvert, setOuvert] = useState(null); // 'pays', 'apropos' ou null
   const [debut, fin] = periode;
@@ -169,21 +165,14 @@ export default function Panneau({
 
       <nav className="actions">
         <div className="actions-boutons">
-          {chargement && <span className="charge">chargement</span>}
-          <button className="puce" aria-pressed={relief} onClick={basculerRelief}>{relief ? 'vue à plat' : 'relief 3D'}</button>
-          <button className="puce" onClick={revenirAuGlobe}>tout le globe</button>
+          {chargement && <span className="charge">Chargement…</span>}
+          <button className="puce" aria-pressed={relief} onClick={basculerRelief}>{relief ? 'Vue à plat' : 'Relief 3D'}</button>
+          <button className="puce" onClick={revenirAuGlobe}>Tout le globe</button>
         </div>
-        <div className="console">
-        {position && (
-          <p className="releve">
-            <b>{coordonnee(position.latitude, 'N', 'S')}</b> · <b>{coordonnee(((position.longitude + 540) % 360) - 180, 'E', 'O')}</b>
-            {' '}· zoom <b>{position.zoom.toFixed(1).replace('.', ',')}</b> · H3 <b>r{resolution}</b>
-          </p>
-        )}
         {relief && (
           <div className="options-relief">
             <label className="hauteur">
-              hauteur ×{facteur}
+              Hauteur ×{facteur}
               <input
                 type="range"
                 min={FACTEUR_MIN}
@@ -193,10 +182,9 @@ export default function Panneau({
                 onChange={(e) => setFacteur(Number(e.target.value))}
               />
             </label>
-            <p className="astuce">clic droit et glisser pour tourner autour</p>
+            <p className="astuce">Clic droit et glisser pour tourner autour</p>
           </div>
         )}
-        </div>
       </nav>
 
       <div className="bas">

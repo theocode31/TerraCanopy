@@ -74,6 +74,8 @@ J'ai aussi allégé le texte. Le choix de ce que montre la carte (perte, part pe
 
 Finalement le violet d'inferno pour les petites pertes ne rendait pas bien. La perte et la part perdue vont maintenant du jaune au rouge, avec 7 teintes de la palette YlOrRd de ColorBrewer. J'ai enlevé la teinte la plus pâle, presque blanche, et le bordeaux le plus sombre, qui se perdait sur le fond. La forêt de 2000 garde viridis.
 
+Le style « écran de contrôle » faisait trop gadget, alors je suis reparti vers quelque chose de plus sobre, comme une carte de journal. Le fond est couleur papier, le titre et la phrase sont dans une police à empattements (Source Serif), et le reste en Libre Franklin. J'ai enlevé l'anneau gradué, les lueurs, la grille, les coins de visée, les étoiles et le relevé de position. Le globe a juste un trait gris fin autour, avec un océan gris-bleu et des terres beige clair. Le jaune-rouge est fait pour un fond clair, donc il marche mieux qu'avant. Pour que le texte reste lisible quand on zoome, il est posé sur des encarts couleur papier, qu'on ne voit pas quand le globe est en entier, et la frise est sur une bande pleine en bas. Le globe est aussi un peu plus petit au départ, pour ne plus passer sous la frise.
+
 ## Ce que montre la carte
 
 | | Ce projet | Global Forest Watch |
