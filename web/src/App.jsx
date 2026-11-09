@@ -3,13 +3,14 @@ import DeckGL from '@deck.gl/react';
 import {
   _GlobeView as GlobeView,
   _GlobeViewport as GlobeViewport,
+  COORDINATE_SYSTEM,
   AmbientLight,
   DirectionalLight,
   LightingEffect,
   LinearInterpolator,
 } from '@deck.gl/core';
 import { H3HexagonLayer } from '@deck.gl/geo-layers';
-import { GeoJsonLayer, PathLayer, SolidPolygonLayer } from '@deck.gl/layers';
+import { BitmapLayer, GeoJsonLayer, PathLayer, SolidPolygonLayer } from '@deck.gl/layers';
 import { latLngToCell } from 'h3-js';
 
 import { chargerBase, chargerPaquet, valeur, perte, formaterHa, formaterPart, formaterKm2 } from './donnees.js';
@@ -17,9 +18,12 @@ import { couleur, hauteur, echellePeriode, seuilsPour, FACTEUR_MIN, FACTEUR_MAX,
 import Panneau from './Panneau.jsx';
 
 const VUE_GLOBE = new GlobeView({ id: 'globe', resolution: 5 });
-// couleurs claires de carte imprimee : ocean gris-bleu, terres beige clair
-const OCEAN = [204, 218, 226];
-const TERRE = [232, 228, 218];
+// fond de carte : relief ombre de Natural Earth (1:50m, terres et fonds marins), colore en creme
+// pour les terres et en bleu pour l'ocean (script pipeline/fond_relief.py). L'ocean et les terres en
+// aplat restent dessous, le temps que l'image arrive.
+const FOND_RELIEF = `${import.meta.env.BASE_URL}fond-relief.jpg`;
+const OCEAN = [172, 203, 222];
+const TERRE = [238, 232, 217];
 const MONDE = [[[-180, 90], [0, 90], [180, 90], [180, -90], [0, -90], [-180, -90]]];
 const ARETE_KM = { 2: 182.5, 3: 69.0, 4: 26.07, 5: 9.85, 6: 3.72 }; // cote moyen des hexagones H3 (h3 4.5, average_hexagon_edge_length)
 const ARETE_MIN_PX = 3; // on prend la resolution la plus fine dont les hexagones font au moins ca a l'ecran
@@ -146,6 +150,7 @@ export default function App() {
   const [lecture, setLecture] = useState(false);
   const [affiche, setAffiche] = useState({ r: 2, hexagones: [] });
   const [chargement, setChargement] = useState(false);
+  const [fondRelief, setFondRelief] = useState(null);
   const touche = useRef(false); // le globe tourne seul tant qu'on n'y a pas touche
   const carte = useRef(null);
 
@@ -156,6 +161,14 @@ export default function App() {
         setPeriode([0, d.resume.annees.length - 1]);
       })
       .catch((e) => setErreur(e.message));
+  }, []);
+
+  // l'image du relief est chargee a part : tant qu'elle n'est pas la, on affiche l'ocean et les
+  // terres en aplat, puis on les retire (deux surfaces a la meme altitude se melangent a l'ecran)
+  useEffect(() => {
+    const image = new Image();
+    image.onload = () => setFondRelief(image);
+    image.src = FOND_RELIEF;
   }, []);
 
   // taille de la zone de carte, pour calculer le zoom de depart et ce qui est visible
@@ -266,6 +279,10 @@ export default function App() {
     lumiere.soleil.direction = l.map((x) => -x / nl);
   }
   const montrerBord = bord && taille && bord.rx < 4 * Math.max(taille.largeur, taille.hauteur);
+  // l'ombrage qui donne du volume au globe s'efface quand on s'approche : de pres, il assombrirait
+  // seulement un cote de l'ecran
+  const grand = taille ? Math.max(taille.largeur, taille.hauteur) : 1;
+  const opaciteVolume = montrerBord ? Math.min(1, Math.max(0, (1.2 * grand - bord.rx) / (0.5 * grand))) : 0;
 
   const resolution = vue ? choisirResolution(vue) : 2;
 
@@ -307,7 +324,19 @@ export default function App() {
 
   const couches = donnees
     ? [
-        new SolidPolygonLayer({ id: 'ocean', data: MONDE, getPolygon: (d) => d, getFillColor: OCEAN }),
+        ...(fondRelief
+          ? [
+              new BitmapLayer({
+                id: 'relief-du-terrain',
+                image: fondRelief,
+                bounds: [-180, -90, 180, 90],
+                _imageCoordinateSystem: COORDINATE_SYSTEM.LNGLAT,
+              }),
+            ]
+          : [
+              new SolidPolygonLayer({ id: 'ocean', data: MONDE, getPolygon: (d) => d, getFillColor: OCEAN }),
+              new GeoJsonLayer({ id: 'terres', data: donnees.terres, filled: true, stroked: false, getFillColor: TERRE }),
+            ]),
         new PathLayer({
           id: 'grille',
           data: GRILLE,
@@ -316,7 +345,6 @@ export default function App() {
           getWidth: 1,
           widthUnits: 'pixels',
         }),
-        new GeoJsonLayer({ id: 'terres', data: donnees.terres, filled: true, stroked: false, getFillColor: TERRE }),
         new H3HexagonLayer({
           id: `hexagones-${affiche.r}`,
           data: affiche.hexagones,
@@ -401,7 +429,14 @@ export default function App() {
             getTooltip={({ object }) => (donnees ? infobulle(object, donnees, debut, fin) : null)}
           />
         )}
-        {/* bord du globe : un trait gris fin */}
+        {/* volume du globe : un ombrage doux vers le bord et un peu de clarte en haut a gauche, puis
+            le trait gris fin du bord */}
+        {montrerBord && opaciteVolume > 0 && (
+          <div
+            className="volume-globe"
+            style={{ left: bord.cx - bord.rx, top: bord.cy - bord.ry, width: 2 * bord.rx, height: 2 * bord.ry, opacity: opaciteVolume }}
+          />
+        )}
         {montrerBord && (
           <div className="bord-globe" style={{ left: bord.cx - bord.rx, top: bord.cy - bord.ry, width: 2 * bord.rx, height: 2 * bord.ry }} />
         )}

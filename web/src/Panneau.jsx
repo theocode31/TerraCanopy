@@ -241,7 +241,7 @@ export default function Panneau({
           <p>
             Données : <a href="https://glad.earthengine.app/view/global-forest-change" target="_blank" rel="noreferrer">Hansen et al. (2013), Science 342</a>,
             version {resume.version}, {resume.nb_tuiles} tuiles de pixels de 30 m regroupées en hexagones H3.
-            Pays : <a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">Natural Earth</a>.
+            Pays et relief du fond de carte : <a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">Natural Earth</a>.
           </p>
           <p>
             Projet réalisé par Théo (theocode31). Le code, le calcul et le journal du projet sont sur{' '}

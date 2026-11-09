@@ -76,6 +76,8 @@ Finalement le violet d'inferno pour les petites pertes ne rendait pas bien. La p
 
 Le style « écran de contrôle » faisait trop gadget, alors je suis reparti vers quelque chose de plus sobre, comme une carte de journal. Le fond est couleur papier, le titre et la phrase sont dans une police à empattements (Source Serif), et le reste en Libre Franklin. J'ai enlevé l'anneau gradué, les lueurs, la grille, les coins de visée, les étoiles et le relevé de position. Le globe a juste un trait gris fin autour, avec un océan gris-bleu et des terres beige clair. Le jaune-rouge est fait pour un fond clair, donc il marche mieux qu'avant. Pour que le texte reste lisible quand on zoome, il est posé sur des encarts couleur papier, qu'on ne voit pas quand le globe est en entier, et la frise est sur une bande pleine en bas. Le globe est aussi un peu plus petit au départ, pour ne plus passer sous la frise.
 
+Ensuite j'ai tout passé en Arial, c'est plus simple et plus net. Et j'ai voulu une planète plus jolie, un peu comme un globe d'atlas. Sous les hexagones, il y a maintenant le relief ombré de Natural Earth (Gray Earth with Shaded Relief, Hypsography and Ocean Bottom, au 1:50m), qui montre les montagnes et le fond des océans. Le script `pipeline/fond_relief.py` réduit l'image à 4096 × 2048 pixels, met les terres en crème et l'océan en bleu, en gardant les ombres. Au premier essai, l'aplat des terres et l'image du relief étaient à la même altitude et se mélangeaient à l'écran, avec des rectangles bizarres sur le Sahara. Maintenant l'aplat ne sert plus qu'en attendant que l'image soit chargée. Enfin le globe a un peu de volume : il est plus sombre vers le bord, un peu plus clair en haut à gauche, et il pose une ombre douce sur le papier.
+
 ## Ce que montre la carte
 
 | | Ce projet | Global Forest Watch |
@@ -148,4 +150,4 @@ web/
 - Hansen, M. C. et al. (2013). High-Resolution Global Maps of 21st-Century Forest Cover Change. Science 342, 850-853. Données (version GFC-2025-v1.13, licence CC BY 4.0) : https://glad.earthengine.app/view/global-forest-change
 - Global Forest Watch / WRI : https://gfr.wri.org/
 - H3, la grille d'hexagones : https://h3geo.org/
-- Natural Earth, pour les pays : https://www.naturalearthdata.com/
+- Natural Earth, pour les pays et le relief du fond de carte (Gray Earth with Shaded Relief, Hypsography and Ocean Bottom, 1:50m) : https://www.naturalearthdata.com/
