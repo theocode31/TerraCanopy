@@ -10,7 +10,7 @@ import {
   LinearInterpolator,
 } from '@deck.gl/core';
 import { H3HexagonLayer } from '@deck.gl/geo-layers';
-import { BitmapLayer, GeoJsonLayer, PathLayer, SolidPolygonLayer, TextLayer } from '@deck.gl/layers';
+import { BitmapLayer, GeoJsonLayer, PathLayer, SolidPolygonLayer } from '@deck.gl/layers';
 import { latLngToCell } from 'h3-js';
 
 import { chargerBase, chargerPaquet, valeur, perte, formaterHa, formaterPart, formaterKm2 } from './donnees.js';
@@ -35,13 +35,12 @@ const INCLINAISON_RELIEF = 50;
 const PAS_LECTURE = 700; // ms par annee quand on lance l'accumulation : 2001 a 2025 en 17 s environ
 // noms des pays, en relief seulement : a partir du zoom 3,5 (celui ou le relief s'incline davantage),
 // avec un fondu sur 0,4 niveau de zoom. Chaque pays attend le zoom conseille par Natural Earth plus
-// 0,5 : le globe incline montre plus de pays qu'une carte a plat au meme zoom. Encre a moitie
-// transparente, pour ne pas cacher les blocs
+// 0,5 : le globe incline montre plus de pays qu'une carte a plat au meme zoom. Ils restent un peu
+// transparents, pour ne pas cacher les blocs
 const ZOOM_NOMS = 3.5;
 const FONDU_NOMS = 0.4;
 const DECALAGE_NOMS = 0.5;
-const ENCRE = [29, 28, 26];
-const OPACITE_NOMS = 0.55;
+const OPACITE_NOMS = 0.9;
 
 // meridiens et paralleles tous les 30 degres
 const GRILLE = [
@@ -331,18 +330,29 @@ export default function App() {
   const grand = taille ? Math.max(taille.largeur, taille.hauteur) : 1;
   const opaciteVolume = montrerBord ? Math.min(1, Math.max(0, (1.2 * grand - bord.rx) / (0.5 * grand))) : 0;
 
-  // noms des pays : toute la couche arrive en fondu autour du zoom 3,5. Chaque nom s'ajoute quand on
-  // a passe son zoom, et seulement sur la face du globe tournee vers nous, loin du bord
-  const opaciteNoms = relief && vue ? Math.min(1, Math.max(0, (vue.zoom - ZOOM_NOMS + FONDU_NOMS) / FONDU_NOMS)) : 0;
-  const cleNoms =
-    donnees && viewport && opaciteNoms > 0
-      ? donnees.noms.flatMap((d, i) => (vue.zoom >= d.zoomMin + DECALAGE_NOMS && vuDeHaut(viewport, d.position) > 0.15 ? [i] : [])).join(',')
-      : '';
-  // la liste ne change que si un nom entre ou sort : la couche ne refait pas la mise en page des
-  // lettres a chaque image
-  const nomsVisibles = useMemo(() => (cleNoms ? cleNoms.split(',').map((i) => donnees.noms[i]) : []), [donnees, cleNoms]);
-  // toutes les lettres des noms, une fois pour toutes, pour que l'atlas des caracteres ne change pas
-  const lettresNoms = useMemo(() => (donnees ? [...new Set(donnees.noms.map((d) => d.nom.toUpperCase()).join(''))].join('') : ''), [donnees]);
+  // noms des pays en relief, ecrits par le navigateur par-dessus la carte (le texte est net et les
+  // lettres peuvent avoir une tranche). Pour chaque nom : sa place a l'ecran, sa taille (il rapetisse
+  // avec la distance, comme les blocs : rapport des profondeurs w entre le point vise et le nom) et
+  // son opacite (fondu quand on passe son zoom, puis vers le bord du globe)
+  const nomsAffiches = [];
+  if (donnees && viewport && relief && vue.zoom > ZOOM_NOMS - FONDU_NOMS) {
+    const m = viewport.pixelProjectionMatrix;
+    const profondeur = (p) => m[3] * p[0] + m[7] * p[1] + m[11] * p[2] + m[15];
+    const w0 = profondeur(viewport.projectPosition([vue.longitude, vue.latitude, 0]));
+    for (const d of donnees.noms) {
+      const zoomVoulu = Math.max(ZOOM_NOMS, d.zoomMin + DECALAGE_NOMS);
+      // chaque facteur est borne a [0, 1] : deux facteurs negatifs donneraient une opacite positive
+      const parZoom = Math.min(1, Math.max(0, (vue.zoom - zoomVoulu + FONDU_NOMS) / FONDU_NOMS));
+      if (parZoom === 0) continue;
+      const opacite = parZoom * Math.min(1, Math.max(0, (vuDeHaut(viewport, d.position) - 0.1) / 0.15));
+      if (opacite === 0) continue;
+      const [x, y] = viewport.project([d.position[0], d.position[1], 0]);
+      if (x < -150 || y < -60 || x > taille.largeur + 150 || y > taille.hauteur + 60) continue;
+      const w = profondeur(viewport.projectPosition([d.position[0], d.position[1], 0]));
+      nomsAffiches.push({ ...d, x, y, w, grossissement: Math.min(1.5, Math.max(0.55, w0 / w)), opacite });
+    }
+    nomsAffiches.sort((a, b) => b.w - a.w); // les plus lointains d'abord, les proches passent devant
+  }
 
   const resolution = vue ? choisirResolution(vue) : 2;
 
@@ -445,30 +455,6 @@ export default function App() {
           getLineColor: [110, 105, 95, 110],
           lineWidthMinPixels: 0.6,
         }),
-        // noms des pays en relief : ils font face a la camera et rapetissent avec la distance, comme
-        // le reste de la scene. Ils passent devant les blocs, a moitie transparents
-        new TextLayer({
-          id: 'noms-des-pays',
-          data: nomsVisibles,
-          visible: nomsVisibles.length > 0,
-          getText: (d) => etiquette(d.nom),
-          getPosition: (d) => d.position,
-          getColor: [...ENCRE, Math.round(255 * OPACITE_NOMS)],
-          getSize: (d) => (d.zoomMin <= 2 ? 15 : d.zoomMin <= 3 ? 13 : 12),
-          characterSet: lettresNoms,
-          fontFamily: 'Arial, Helvetica, sans-serif',
-          fontWeight: 'bold',
-          fontSettings: { sdf: true, fontSize: 64, buffer: 8, radius: 16 },
-          outlineWidth: 5,
-          outlineColor: [...PAPIER, 120],
-          lineHeight: 1.1,
-          getTextAnchor: 'middle',
-          getAlignmentBaseline: 'center',
-          // le globe de deck.gl ecarte les faces vues de dos (cullMode 'back'), et les lettres sont
-          // tracees dans l'autre sens : sans ce reglage, aucune ne s'affiche
-          parameters: { cullMode: 'none', depthCompare: 'always', depthWriteEnabled: false },
-          opacity: opaciteNoms,
-        }),
       ]
     : [];
 
@@ -532,6 +518,23 @@ export default function App() {
         )}
         {montrerBord && (
           <div className="bord-globe" style={{ left: bord.cx - bord.rx, top: bord.cy - bord.ry, width: 2 * bord.rx, height: 2 * bord.ry }} />
+        )}
+        {nomsAffiches.length > 0 && (
+          <div className="noms-pays" aria-hidden="true">
+            {nomsAffiches.map((d) => (
+              <div
+                key={d.nom}
+                className="nom-pays"
+                style={{
+                  fontSize: d.zoomMin <= 2 ? 15 : d.zoomMin <= 3 ? 13 : 12,
+                  transform: `translate(${d.x}px, ${d.y}px) translate(-50%, -50%) scale(${d.grossissement})`,
+                  opacity: OPACITE_NOMS * d.opacite,
+                }}
+              >
+                {etiquette(d.nom)}
+              </div>
+            ))}
+          </div>
         )}
         <Habillage
           donnees={donnees}

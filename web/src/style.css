@@ -47,6 +47,24 @@ body {
     radial-gradient(closest-side, rgba(20, 35, 50, 0) 60%, rgba(20, 35, 50, 0.1) 82%, rgba(20, 35, 50, 0.28) 100%);
 }
 
+/* noms des pays en relief : capitales blanches espacees, posees sur une tranche grise de 3 px (des
+   ombres empilees un pixel plus bas a chaque fois), puis une ombre douce sur la carte. Les lettres
+   ont l'air en volume. Le padding a gauche compense l'espace ajoute apres la derniere lettre */
+.noms-pays { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.nom-pays {
+  position: absolute; left: 0; top: 0; padding-left: 0.16em;
+  font-family: Arial, Helvetica, sans-serif; font-weight: 700; letter-spacing: 0.16em;
+  line-height: 1.15; white-space: pre; text-align: center;
+  color: #fff;
+  text-shadow:
+    0 1px 0 #dcd8d0,
+    0 2px 0 #c8c3ba,
+    0 3px 0 #b2ada3,
+    0 4px 4px rgba(25, 22, 18, 0.4),
+    0 7px 12px rgba(25, 22, 18, 0.22);
+  will-change: transform, opacity;
+}
+
 /* boutons texte, soulignes quand ils sont choisis */
 .appli button {
   background: none; border: none; padding: 0; margin: 0;
