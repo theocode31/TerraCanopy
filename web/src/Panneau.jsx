@@ -147,7 +147,7 @@ export function Habillage({ donnees, mesure, setMesure, periode, cumul, relief, 
           <Legende mesure={mesure} setMesure={setMesure} annees={resume.annees} debut={debut} fin={fin} cumul={cumul} />
           <div className="liens">
             <button aria-expanded={apropos} onClick={() => setApropos(!apropos)}>À propos des données</button>
-            <span className="credit">Un projet de Théo</span>
+            <span className="credit">Projet Théo Lafon</span>
           </div>
         </div>
       </div>
