@@ -10,7 +10,7 @@ import {
   LinearInterpolator,
 } from '@deck.gl/core';
 import { H3HexagonLayer } from '@deck.gl/geo-layers';
-import { BitmapLayer, GeoJsonLayer, PathLayer, SolidPolygonLayer } from '@deck.gl/layers';
+import { BitmapLayer, GeoJsonLayer, PathLayer, SolidPolygonLayer, TextLayer } from '@deck.gl/layers';
 import { latLngToCell } from 'h3-js';
 
 import { chargerBase, chargerPaquet, valeur, perte, formaterHa, formaterPart, formaterKm2 } from './donnees.js';
@@ -33,6 +33,15 @@ const RAYON_TERRE_KM = 6371;
 const RAYON_GLOBE = 256; // rayon du globe dans les coordonnees internes de deck.gl
 const INCLINAISON_RELIEF = 50;
 const PAS_LECTURE = 700; // ms par annee quand on lance l'accumulation : 2001 a 2025 en 17 s environ
+// noms des pays, en relief seulement : a partir du zoom 3,5 (celui ou le relief s'incline davantage),
+// avec un fondu sur 0,4 niveau de zoom. Chaque pays attend le zoom conseille par Natural Earth plus
+// 0,5 : le globe incline montre plus de pays qu'une carte a plat au meme zoom. Encre a moitie
+// transparente, pour ne pas cacher les blocs
+const ZOOM_NOMS = 3.5;
+const FONDU_NOMS = 0.4;
+const DECALAGE_NOMS = 0.5;
+const ENCRE = [29, 28, 26];
+const OPACITE_NOMS = 0.55;
 
 // meridiens et paralleles tous les 30 degres
 const GRILLE = [
@@ -110,6 +119,27 @@ function bordDuGlobe(viewport) {
     x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
   }
   return { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, rx: (x1 - x0) / 2, ry: (y1 - y0) / 2 };
+}
+
+// cos de l'angle entre la verticale d'un lieu et la direction de la camera : 1 quand on le voit
+// d'en haut, 0 au bord du globe, negatif derriere
+function vuDeHaut(viewport, [lon, lat]) {
+  const p = viewport.projectPosition([lon, lat, 0]);
+  const c = viewport.cameraPosition;
+  const v = [c[0] - p[0], c[1] - p[1], c[2] - p[2]];
+  return (p[0] * v[0] + p[1] * v[1] + p[2] * v[2]) / (Math.hypot(p[0], p[1], p[2]) * Math.hypot(v[0], v[1], v[2]));
+}
+
+// nom en capitales ; un nom long passe sur deux lignes, coupe a l'espace le plus proche du milieu
+// (jamais au milieu d'un mot : « BOSNIE-HERZÉGOVINE » reste entier)
+function etiquette(nom) {
+  const n = nom.toUpperCase();
+  if (n.length <= 14 || !n.includes(' ')) return n;
+  let coupe = -1;
+  for (let k = 0; k < n.length; k++) {
+    if (n[k] === ' ' && (coupe < 0 || Math.abs(k - n.length / 2) < Math.abs(coupe - n.length / 2))) coupe = k;
+  }
+  return `${n.slice(0, coupe)}\n${n.slice(coupe + 1)}`;
 }
 
 function infobulle(d, donnees, debut, fin) {
@@ -301,6 +331,19 @@ export default function App() {
   const grand = taille ? Math.max(taille.largeur, taille.hauteur) : 1;
   const opaciteVolume = montrerBord ? Math.min(1, Math.max(0, (1.2 * grand - bord.rx) / (0.5 * grand))) : 0;
 
+  // noms des pays : toute la couche arrive en fondu autour du zoom 3,5. Chaque nom s'ajoute quand on
+  // a passe son zoom, et seulement sur la face du globe tournee vers nous, loin du bord
+  const opaciteNoms = relief && vue ? Math.min(1, Math.max(0, (vue.zoom - ZOOM_NOMS + FONDU_NOMS) / FONDU_NOMS)) : 0;
+  const cleNoms =
+    donnees && viewport && opaciteNoms > 0
+      ? donnees.noms.flatMap((d, i) => (vue.zoom >= d.zoomMin + DECALAGE_NOMS && vuDeHaut(viewport, d.position) > 0.15 ? [i] : [])).join(',')
+      : '';
+  // la liste ne change que si un nom entre ou sort : la couche ne refait pas la mise en page des
+  // lettres a chaque image
+  const nomsVisibles = useMemo(() => (cleNoms ? cleNoms.split(',').map((i) => donnees.noms[i]) : []), [donnees, cleNoms]);
+  // toutes les lettres des noms, une fois pour toutes, pour que l'atlas des caracteres ne change pas
+  const lettresNoms = useMemo(() => (donnees ? [...new Set(donnees.noms.map((d) => d.nom.toUpperCase()).join(''))].join('') : ''), [donnees]);
+
   const resolution = vue ? choisirResolution(vue) : 2;
 
   // les hexagones a afficher : on garde l'ancien affichage tant que les nouveaux paquets ne sont pas la
@@ -401,6 +444,30 @@ export default function App() {
           stroked: true,
           getLineColor: [110, 105, 95, 110],
           lineWidthMinPixels: 0.6,
+        }),
+        // noms des pays en relief : ils font face a la camera et rapetissent avec la distance, comme
+        // le reste de la scene. Ils passent devant les blocs, a moitie transparents
+        new TextLayer({
+          id: 'noms-des-pays',
+          data: nomsVisibles,
+          visible: nomsVisibles.length > 0,
+          getText: (d) => etiquette(d.nom),
+          getPosition: (d) => d.position,
+          getColor: [...ENCRE, Math.round(255 * OPACITE_NOMS)],
+          getSize: (d) => (d.zoomMin <= 2 ? 15 : d.zoomMin <= 3 ? 13 : 12),
+          characterSet: lettresNoms,
+          fontFamily: 'Arial, Helvetica, sans-serif',
+          fontWeight: 'bold',
+          fontSettings: { sdf: true, fontSize: 64, buffer: 8, radius: 16 },
+          outlineWidth: 5,
+          outlineColor: [...PAPIER, 120],
+          lineHeight: 1.1,
+          getTextAnchor: 'middle',
+          getAlignmentBaseline: 'center',
+          // le globe de deck.gl ecarte les faces vues de dos (cullMode 'back'), et les lettres sont
+          // tracees dans l'autre sens : sans ce reglage, aucune ne s'affiche
+          parameters: { cullMode: 'none', depthCompare: 'always', depthWriteEnabled: false },
+          opacity: opaciteNoms,
         }),
       ]
     : [];

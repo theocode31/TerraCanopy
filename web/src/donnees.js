@@ -20,14 +20,17 @@ function preparer(lignes) {
 }
 
 export async function chargerBase() {
-  const [resume, index, r2, r3, terres] = await Promise.all(
-    ['resume.json', 'index.json', 'r2.json', 'r3.json', 'terres.json'].map(lireJson),
-  );
+  // noms des pays (pipeline/noms_pays.py) : sans eux, le site marche quand meme
+  const [resume, index, r2, r3, terres, noms] = await Promise.all([
+    ...['resume.json', 'index.json', 'r2.json', 'r3.json', 'terres.json'].map(lireJson),
+    lireJson('noms.json').catch(() => []),
+  ]);
   const disponibles = {};
   for (const [r, parents] of Object.entries(index)) disponibles[r] = new Set(parents);
   return {
     resume,
     terres,
+    noms: noms.map(([nom, lon, lat, zoomMin]) => ({ nom, position: [lon, lat], zoomMin })),
     disponibles,
     pays: Object.fromEntries(resume.pays.map((p) => [p.code, p])),
     niveaux: { 2: preparer(r2), 3: preparer(r3) },

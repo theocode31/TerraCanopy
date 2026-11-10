@@ -86,6 +86,8 @@ Les couleurs faisaient délavé, donc j'ai mis plus de contraste. Les terres son
 
 En relief, les colonnes faisaient une forêt de piquets. Elles sont deux fois moins hautes (100 % donne maintenant deux côtés d'hexagone au lieu de quatre), un peu espacées, et la lumière vient d'en haut à gauche. Le dessus garde sa couleur, la face avant est un peu plus sombre et la face de droite est dans l'ombre. Ça fait des blocs plutôt que des bâtons.
 
+Plus tard dans la journée, j'ai ajouté les noms des pays, mais seulement en relief et quand on s'approche (à partir du zoom 3,5). Ils sont pris dans Natural Earth, qui donne pour chaque pays un point où écrire son nom et un zoom conseillé pour l'écrire : les grands pays apparaissent d'abord, les petits ensuite. J'ai ajouté un demi-niveau à ce zoom, parce que le globe incliné montre plus de pays qu'une carte à plat. Les noms font face à la caméra et rapetissent avec la distance, comme les blocs. Ils sont en capitales grises à moitié transparentes, avec un léger contour clair, pour qu'on les lise sans qu'ils cachent les blocs. Au début, aucun nom ne s'affichait : le globe de deck.gl ne dessine pas les faces vues de dos, et les lettres étaient tracées dans l'autre sens. Il a fallu désactiver ce tri pour la couche des noms.
+
 ## Ce que montre la carte
 
 | | Ce projet | Global Forest Watch |
@@ -146,8 +148,9 @@ pipeline/
   lancer_pipeline.py   télécharge, résume et supprime les 280 tuiles, les tropiques d'abord
   exporter_web.py      fusionne les tuiles, calcule les résolutions 5 à 2 et les pays, coupe en paquets
   fond_relief.py       le fond de carte : relief ombré de Natural Earth, terres en gris et océan en bleu
+  noms_pays.py         les noms des pays pour le relief (point et zoom d'affichage de Natural Earth)
 web/
-  src/App.jsx          le globe (deck.gl) et le choix de la résolution selon le zoom
+  src/App.jsx          le globe (deck.gl), le choix de la résolution selon le zoom, les noms des pays en relief
   src/Panneau.jsx      le bandeau du titre, la carte de légende, la frise des années (repliable), le réglage du relief
   src/donnees.js       chargement des paquets et sommes cumulées
   src/couleurs.js      couleurs et seuils
@@ -159,4 +162,4 @@ web/
 - Hansen, M. C. et al. (2013). High-Resolution Global Maps of 21st-Century Forest Cover Change. Science 342, 850-853. Données (version GFC-2025-v1.13, licence CC BY 4.0) : https://glad.earthengine.app/view/global-forest-change
 - Global Forest Watch / WRI : https://gfr.wri.org/
 - H3, la grille d'hexagones : https://h3geo.org/
-- Natural Earth, pour les pays et le relief du fond de carte (Gray Earth with Shaded Relief, Hypsography and Ocean Bottom, 1:50m) : https://www.naturalearthdata.com/
+- Natural Earth, pour les pays, leurs noms et le relief du fond de carte (Gray Earth with Shaded Relief, Hypsography and Ocean Bottom, 1:50m) : https://www.naturalearthdata.com/
