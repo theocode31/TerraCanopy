@@ -12,9 +12,152 @@ const MESURES = [
 const DEPOT = 'https://github.com/theocode31/TerraCanopy';
 const ANNEES_REPERES = [2001, 2005, 2010, 2015, 2020, 2025];
 
+const nombre = (x) => String(x).replace('.', ',');
+const libellePeriode = (annees, debut, fin) => (debut === fin ? `${annees[debut]}` : `${annees[debut]} – ${annees[fin]}`);
+
+// bandeau du haut : le titre, la phrase qui donne les chiffres de la periode, et les boutons de vue
+export function Bandeau({ donnees, erreur, periode, relief, basculerRelief, revenirAuGlobe, chargement }) {
+  const [debut, fin] = periode;
+  let phrase;
+  if (erreur) phrase = <p className="phrase erreur">{erreur}</p>;
+  else if (!donnees) phrase = <p className="phrase attente">Chargement…</p>;
+  else {
+    const { resume } = donnees;
+    const annees = resume.annees;
+    const perteMonde = sommePeriode(resume.pertes, debut, fin);
+    const quand = debut === fin ? `En ${annees[debut]}` : `Entre ${annees[debut]} et ${annees[fin]}`;
+    phrase = (
+      <p className="phrase">
+        {quand}, <em>{formaterHa(perteMonde)}</em> de couvert arboré ont disparu, soit{' '}
+        <em>{formaterPart((100 * perteMonde) / resume.foret_2000)}</em> de la forêt de 2000.
+      </p>
+    );
+  }
+  return (
+    <header className="bandeau">
+      <div className="bandeau-texte">
+        <h1>Terra Canopy</h1>
+        {phrase}
+      </div>
+      {donnees && (
+        <nav className="actions">
+          {chargement && <span className="charge">Chargement…</span>}
+          <button className="puce" aria-pressed={relief} onClick={basculerRelief}>{relief ? 'Vue à plat' : 'Relief 3D'}</button>
+          <button className="puce" onClick={revenirAuGlobe}>Tout le globe</button>
+        </nav>
+      )}
+    </header>
+  );
+}
+
+function Legende({ mesure, setMesure, annees, debut, fin, cumul }) {
+  const { couleurs } = CLASSES[mesure];
+  const echelle = cumul ? 1 : echellePeriode(mesure, fin - debut + 1, annees.length);
+  const seuils = seuilsPour(mesure, echelle);
+  // pour la perte et la part perdue, la premiere classe n'est pas dessinee : la barre commence au
+  // premier seuil
+  const sansPremiere = couleurs[0] === null;
+  const teintes = sansPremiere ? couleurs.slice(1) : couleurs;
+  const quand = debut === fin ? `en ${annees[debut]}` : `de ${annees[debut]} à ${annees[fin]}`;
+  const texte = {
+    perte: `Surface perdue ${quand}, en % de la surface de l’hexagone`,
+    part: `Perte ${quand}, en % de la forêt de 2000`,
+    foret: 'Couvert arboré de plus de 30 % en 2000, en % de la surface',
+  }[mesure];
+  return (
+    <div className="legende">
+      <div className="couches" role="group" aria-label="Ce que montrent les couleurs">
+        {MESURES.map((m) => (
+          <button key={m.cle} aria-pressed={mesure === m.cle} onClick={() => setMesure(m.cle)}>{m.nom}</button>
+        ))}
+      </div>
+      <div className="legende-barre">
+        {teintes.map((c) => <span key={c} style={{ background: c }} />)}
+      </div>
+      <div className="legende-bornes">
+        {seuils.map((s, i) => {
+          const position = sansPremiere ? i / teintes.length : (i + 1) / teintes.length;
+          return (
+            <span key={i} style={{ left: `${position * 100}%`, transform: position === 0 ? 'none' : undefined }}>{nombre(s)}</span>
+          );
+        })}
+        <span className="unite">%</span>
+      </div>
+      <p>
+        {texte}.
+        {sansPremiere && ` En dessous de ${nombre(seuils[0])} %, l’hexagone n’est pas dessiné.`}
+        {!cumul && echelle < 1 && ' Les seuils suivent la durée de la période.'}
+      </p>
+    </div>
+  );
+}
+
+// ce qui est pose sur la carte : la carte de legende en bas a gauche (avec les liens), le volet
+// « a propos » au-dessus quand on l'ouvre, et le reglage de hauteur en haut a droite en relief
+export function Habillage({ donnees, mesure, setMesure, periode, cumul, relief, facteur, setFacteur }) {
+  const [apropos, setApropos] = useState(false);
+  if (!donnees) return null;
+  const { resume } = donnees;
+  const [debut, fin] = periode;
+
+  return (
+    <div className="habillage">
+      {relief && (
+        <div className="carte-relief">
+          <label className="hauteur">
+            Hauteur ×{facteur}
+            <input
+              type="range"
+              min={FACTEUR_MIN}
+              max={FACTEUR_MAX}
+              step={1}
+              value={facteur}
+              onChange={(e) => setFacteur(Number(e.target.value))}
+            />
+          </label>
+          <p className="astuce">Clic droit et glisser pour tourner autour</p>
+        </div>
+      )}
+
+      <div className="coin">
+        {apropos && (
+          <section className="volet">
+            <h2>À savoir avant de lire la carte</h2>
+            <p>
+              Perte de couvert arboré ne veut pas dire déforestation : les coupes qui repoussent, les incendies et
+              les tempêtes comptent aussi. Les données ne disent pas pourquoi les arbres ont disparu.
+            </p>
+            <p>
+              Seuls les pixels de plus de 30 % de couvert en 2000 sont comptés. Les années ne sont pas parfaitement
+              comparables : les satellites ont changé (Landsat 8 à partir de 2013) et il y a plus d’images qu’au début
+              des années 2000, donc une partie de la hausse peut venir d’une meilleure détection.
+            </p>
+            <p>
+              Données : <a href="https://glad.earthengine.app/view/global-forest-change" target="_blank" rel="noreferrer">Hansen et al. (2013), Science 342</a>,
+              version {resume.version}, {resume.nb_tuiles} tuiles de pixels de 30 m regroupées en hexagones H3.
+              Pays et relief du fond de carte : <a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">Natural Earth</a>.
+            </p>
+            <p>
+              Projet réalisé par Théo (theocode31). Le code, le calcul et le journal du projet sont sur{' '}
+              <a href={DEPOT} target="_blank" rel="noreferrer">github.com/theocode31/TerraCanopy</a>.
+            </p>
+          </section>
+        )}
+        <div className="carte-legende">
+          <Legende mesure={mesure} setMesure={setMesure} annees={resume.annees} debut={debut} fin={fin} cumul={cumul} />
+          <div className="liens">
+            <button aria-expanded={apropos} onClick={() => setApropos(!apropos)}>À propos des données</button>
+            <span className="credit">Un projet de Théo</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // frise des annees : la perte mondiale par an, et on choisit la periode en cliquant-glissant dessus.
 // En mode cumul, la periode part toujours de 2001 et un clic choisit l'annee de fin.
-function Frise({ annees, pertes, debut, fin, setPeriode, cumul, choisirCumul, lecture, lancerLecture }) {
+function Frise({ annees, pertes, debut, fin, setPeriode, cumul, choisirCumul, lecture, lancerLecture, replier }) {
   const [survol, setSurvol] = useState(null);
   const depart = useRef(null);
   const zone = useRef(null);
@@ -47,7 +190,7 @@ function Frise({ annees, pertes, debut, fin, setPeriode, cumul, choisirCumul, le
     <div className="frise">
       <div className="frise-tete">
         <div className="frise-gauche">
-          <span className="frise-periode">{debut === fin ? annees[debut] : `${annees[debut]} – ${annees[fin]}`}</span>
+          <span className="frise-periode">{libellePeriode(annees, debut, fin)}</span>
           <span className="frise-modes">
             <button aria-pressed={!cumul} onClick={() => choisirCumul(false)}>Période choisie</button>
             <span className="sep"> · </span>
@@ -55,13 +198,16 @@ function Frise({ annees, pertes, debut, fin, setPeriode, cumul, choisirCumul, le
           </span>
           <button className="puce frise-lecture" aria-pressed={lecture} onClick={lancerLecture}>{lecture ? '❚❚ Pause' : '▶ Voir la perte s’accumuler'}</button>
         </div>
-        <span className="frise-info">
-          {k !== null
-            ? `${annees[k]} : ${formaterHa(pertes[k])} perdus dans le monde`
-            : cumul
-              ? `Cliquer sur une année pour voir tout ce qui a été perdu depuis ${annees[0]}`
-              : 'Cliquer-glisser sur les années pour choisir la période, double-clic pour tout reprendre'}
-        </span>
+        <div className="frise-droite">
+          <span className="frise-info">
+            {k !== null
+              ? `${annees[k]} : ${formaterHa(pertes[k])} perdus dans le monde`
+              : cumul
+                ? `Cliquer sur une année pour voir tout ce qui a été perdu depuis ${annees[0]}`
+                : 'Cliquer-glisser sur les années pour choisir la période, double-clic pour tout reprendre'}
+          </span>
+          <button className="replier" aria-expanded={true} onClick={replier}>Replier ▾</button>
+        </div>
       </div>
       <div
         className="frise-barres"
@@ -99,156 +245,37 @@ function Frise({ annees, pertes, debut, fin, setPeriode, cumul, choisirCumul, le
   );
 }
 
-function Legende({ mesure, setMesure, annees, debut, fin, cumul }) {
-  const { couleurs } = CLASSES[mesure];
-  const echelle = cumul ? 1 : echellePeriode(mesure, fin - debut + 1, annees.length);
-  const seuils = seuilsPour(mesure, echelle);
-  const quand = debut === fin ? `en ${annees[debut]}` : `de ${annees[debut]} à ${annees[fin]}`;
-  const texte = {
-    perte: `Surface perdue ${quand}, en % de la surface de l’hexagone`,
-    part: `Perte ${quand}, en % de la forêt de 2000`,
-    foret: 'Couvert arboré de plus de 30 % en 2000, en % de la surface',
-  }[mesure];
-  return (
-    <div className="legende">
-      <div className="couches" role="group" aria-label="Ce que montrent les couleurs">
-        {MESURES.map((m) => (
-          <button key={m.cle} aria-pressed={mesure === m.cle} onClick={() => setMesure(m.cle)}>{m.nom}</button>
-        ))}
-      </div>
-      <div className="legende-barre">
-        {couleurs.map((c) => <span key={c} style={{ background: c }} />)}
-      </div>
-      <div className="legende-bornes">
-        {seuils.map((s, i) => (
-          <span key={i} style={{ left: `${((i + 1) / couleurs.length) * 100}%` }}>{String(s).replace('.', ',')}</span>
-        ))}
-        <span className="unite">%</span>
-      </div>
-      <p>
-        {texte}.
-        {!cumul && echelle < 1 && ' Les seuils suivent la durée de la période.'}
-      </p>
-    </div>
-  );
-}
-
-export default function Panneau({
-  donnees, erreur, mesure, setMesure, periode, setPeriode, cumul, choisirCumul, lecture, lancerLecture,
-  relief, basculerRelief, facteur, setFacteur, revenirAuGlobe, chargement, allerVers,
-}) {
-  const [ouvert, setOuvert] = useState(null); // 'pays', 'apropos' ou null
-  const [debut, fin] = periode;
-
-  if (erreur) return <div className="habillage"><p className="erreur">{erreur}</p></div>;
-  if (!donnees) return <div className="habillage"><p className="attente">Chargement…</p></div>;
-
+// pied de page : la frise, ou une seule ligne quand on l'a repliee pour voir toute la carte
+export function Pied({ donnees, periode, setPeriode, cumul, choisirCumul, lecture, lancerLecture, replie, setReplie }) {
+  if (!donnees) return null;
   const { resume } = donnees;
   const annees = resume.annees;
-  const perteMonde = sommePeriode(resume.pertes, debut, fin);
-  const classement = resume.pays
-    .map((p) => ({ ...p, perte: sommePeriode(p.pertes, debut, fin) }))
-    .sort((a, b) => b.perte - a.perte)
-    .slice(0, 10);
-  const quand = debut === fin ? `En ${annees[debut]}` : `Entre ${annees[debut]} et ${annees[fin]}`;
-  const basculer = (quoi) => setOuvert(ouvert === quoi ? null : quoi);
+  const [debut, fin] = periode;
 
+  if (replie) {
+    return (
+      <footer className="pied replie">
+        <span className="frise-periode">{libellePeriode(annees, debut, fin)}</span>
+        <span className="pied-mode">{cumul ? `Cumul depuis ${annees[0]}` : 'Période choisie'}</span>
+        {lecture && <button className="puce" aria-pressed={true} onClick={lancerLecture}>❚❚ Pause</button>}
+        <button className="replier" aria-expanded={false} onClick={() => setReplie(false)}>Afficher les années ▴</button>
+      </footer>
+    );
+  }
   return (
-    <div className="habillage">
-      <header className="titre">
-        <h1>Terra Canopy</h1>
-        <p className="phrase">
-          {quand}, <em>{formaterHa(perteMonde)}</em> de couvert arboré ont disparu, soit{' '}
-          <em>{formaterPart((100 * perteMonde) / resume.foret_2000)}</em> de la forêt de 2000.
-        </p>
-      </header>
-
-      <nav className="actions">
-        <div className="actions-boutons">
-          {chargement && <span className="charge">Chargement…</span>}
-          <button className="puce" aria-pressed={relief} onClick={basculerRelief}>{relief ? 'Vue à plat' : 'Relief 3D'}</button>
-          <button className="puce" onClick={revenirAuGlobe}>Tout le globe</button>
-        </div>
-        {relief && (
-          <div className="options-relief">
-            <label className="hauteur">
-              Hauteur ×{facteur}
-              <input
-                type="range"
-                min={FACTEUR_MIN}
-                max={FACTEUR_MAX}
-                step={1}
-                value={facteur}
-                onChange={(e) => setFacteur(Number(e.target.value))}
-              />
-            </label>
-            <p className="astuce">Clic droit et glisser pour tourner autour</p>
-          </div>
-        )}
-      </nav>
-
-      <div className="bas">
-        <div className="bas-ligne">
-          <Legende mesure={mesure} setMesure={setMesure} annees={annees} debut={debut} fin={fin} cumul={cumul} />
-          <div className="liens">
-            <button aria-expanded={ouvert === 'pays'} onClick={() => basculer('pays')}>Les dix pays qui ont le plus perdu</button>
-            <button aria-expanded={ouvert === 'apropos'} onClick={() => basculer('apropos')}>À propos des données</button>
-            <a className="credit" href={DEPOT} target="_blank" rel="noreferrer">Un projet de Théo · le code sur GitHub</a>
-          </div>
-        </div>
-        <Frise
-          annees={annees}
-          pertes={resume.pertes}
-          debut={debut}
-          fin={fin}
-          setPeriode={setPeriode}
-          cumul={cumul}
-          choisirCumul={choisirCumul}
-          lecture={lecture}
-          lancerLecture={lancerLecture}
-        />
-      </div>
-
-      {ouvert === 'pays' && (
-        <section className="volet">
-          <h2>{quand}, les pays qui ont perdu le plus de couvert arboré</h2>
-          <ol className="classement">
-            {classement.map((p) => (
-              <li key={p.code}>
-                <button onClick={() => { allerVers(p.centre); setOuvert(null); }} title={`Aller vers : ${p.nom}`}>
-                  <span className="nom">{p.nom}</span>
-                  <span className="valeur">{formaterHa(p.perte)}</span>
-                </button>
-              </li>
-            ))}
-          </ol>
-          <p className="note">Cliquer sur un pays pour y aller.</p>
-        </section>
-      )}
-
-      {ouvert === 'apropos' && (
-        <section className="volet">
-          <h2>À savoir avant de lire la carte</h2>
-          <p>
-            Perte de couvert arboré ne veut pas dire déforestation : les coupes qui repoussent, les incendies et
-            les tempêtes comptent aussi. Les données ne disent pas pourquoi les arbres ont disparu.
-          </p>
-          <p>
-            Seuls les pixels de plus de 30 % de couvert en 2000 sont comptés. Les années ne sont pas parfaitement
-            comparables : les satellites ont changé (Landsat 8 à partir de 2013) et il y a plus d’images qu’au début
-            des années 2000, donc une partie de la hausse peut venir d’une meilleure détection.
-          </p>
-          <p>
-            Données : <a href="https://glad.earthengine.app/view/global-forest-change" target="_blank" rel="noreferrer">Hansen et al. (2013), Science 342</a>,
-            version {resume.version}, {resume.nb_tuiles} tuiles de pixels de 30 m regroupées en hexagones H3.
-            Pays et relief du fond de carte : <a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">Natural Earth</a>.
-          </p>
-          <p>
-            Projet réalisé par Théo (theocode31). Le code, le calcul et le journal du projet sont sur{' '}
-            <a href={DEPOT} target="_blank" rel="noreferrer">github.com/theocode31/TerraCanopy</a>.
-          </p>
-        </section>
-      )}
-    </div>
+    <footer className="pied">
+      <Frise
+        annees={annees}
+        pertes={resume.pertes}
+        debut={debut}
+        fin={fin}
+        setPeriode={setPeriode}
+        cumul={cumul}
+        choisirCumul={choisirCumul}
+        lecture={lecture}
+        lancerLecture={lancerLecture}
+        replier={() => setReplie(true)}
+      />
+    </footer>
   );
 }

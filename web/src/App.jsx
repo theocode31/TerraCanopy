@@ -14,16 +14,17 @@ import { BitmapLayer, GeoJsonLayer, PathLayer, SolidPolygonLayer } from '@deck.g
 import { latLngToCell } from 'h3-js';
 
 import { chargerBase, chargerPaquet, valeur, perte, formaterHa, formaterPart, formaterKm2 } from './donnees.js';
-import { couleur, hauteur, echellePeriode, seuilsPour, FACTEUR_MIN, FACTEUR_MAX, FACTEUR_DEPART } from './couleurs.js';
-import Panneau from './Panneau.jsx';
+import { couleur, visible, hauteur, echellePeriode, seuilsPour, FACTEUR_MIN, FACTEUR_MAX, FACTEUR_DEPART } from './couleurs.js';
+import { Bandeau, Habillage, Pied } from './Panneau.jsx';
 
 const VUE_GLOBE = new GlobeView({ id: 'globe', resolution: 5 });
-// fond de carte : relief ombre de Natural Earth (1:50m, terres et fonds marins), colore en creme
-// pour les terres et en bleu pour l'ocean (script pipeline/fond_relief.py). L'ocean et les terres en
-// aplat restent dessous, le temps que l'image arrive.
+// fond de carte : relief ombre de Natural Earth (1:50m, terres et fonds marins), colore en gris
+// clair pour les terres et en bleu profond pour l'ocean (script pipeline/fond_relief.py). L'ocean et
+// les terres en aplat servent le temps que l'image arrive.
 const FOND_RELIEF = `${import.meta.env.BASE_URL}fond-relief.jpg`;
-const OCEAN = [172, 203, 222];
-const TERRE = [238, 232, 217];
+const OCEAN = [118, 160, 196];
+const TERRE = [224, 223, 219];
+const PAPIER = [246, 243, 236];
 const MONDE = [[[-180, 90], [0, 90], [180, 90], [180, -90], [0, -90], [-180, -90]]];
 const ARETE_KM = { 2: 182.5, 3: 69.0, 4: 26.07, 5: 9.85, 6: 3.72 }; // cote moyen des hexagones H3 (h3 4.5, average_hexagon_edge_length)
 const ARETE_MIN_PX = 3; // on prend la resolution la plus fine dont les hexagones font au moins ca a l'ecran
@@ -55,10 +56,12 @@ function choisirResolution(vue) {
 }
 
 function zoomPourVoirLeGlobe(largeur, hauteurPx, latitude) {
-  // avec la perspective, le globe parait environ 0,78 fois plus petit que le calcul. On vise la
-  // moitie du petit cote, mais le bas du globe doit rester au-dessus de la bande de la frise (150 px)
+  // avec la perspective, le globe parait environ 0,8 fois plus petit que le calcul : en visant la
+  // moitie du petit cote, il en occupe environ 80 %. Sur un ecran etroit, la legende prend le bas de
+  // la carte, et le globe reste au-dessus (170 px)
   const petit = Math.min(largeur, hauteurPx);
-  const rayonVoulu = Math.max(0.25 * petit, Math.min(0.5 * petit, (hauteurPx / 2 - 150) / 0.78));
+  let rayonVoulu = 0.5 * petit;
+  if (largeur < 760) rayonVoulu = Math.max(0.3 * petit, Math.min(rayonVoulu, (hauteurPx / 2 - 170) / 0.78));
   return Math.log2((rayonVoulu * Math.PI * Math.cos((latitude * Math.PI) / 180)) / RAYON_GLOBE);
 }
 
@@ -151,6 +154,7 @@ export default function App() {
   const [affiche, setAffiche] = useState({ r: 2, hexagones: [] });
   const [chargement, setChargement] = useState(false);
   const [fondRelief, setFondRelief] = useState(null);
+  const [replie, setReplie] = useState(false); // frise des annees repliee
   const touche = useRef(false); // le globe tourne seul tant qu'on n'y a pas touche
   const carte = useRef(null);
 
@@ -201,6 +205,13 @@ export default function App() {
       setVue({ longitude: -35, latitude, zoom: zoomPourVoirLeGlobe(taille.largeur, taille.hauteur, latitude), pitch: 0, bearing: 0 });
     }
   }, [taille, vue]);
+
+  // tant qu'on n'a pas touche au globe, il garde la bonne taille si la zone de carte change
+  // (chargement de la frise, fenetre redimensionnee)
+  useEffect(() => {
+    if (!taille || touche.current) return;
+    setVue((v) => (v ? { ...v, zoom: zoomPourVoirLeGlobe(taille.largeur, taille.hauteur, v.latitude) } : v));
+  }, [taille]);
 
   useEffect(() => {
     if (!vue || !touche.current) return undefined;
@@ -262,7 +273,8 @@ export default function App() {
   const bord = viewport ? bordDuGlobe(viewport) : null;
 
   // relief : une lumiere qui suit la vue. Elle tombe d'en haut (la verticale du point vise), un peu
-  // du cote de la camera, pour que le dessus des colonnes garde sa couleur partout sur le globe
+  // du cote de la camera et un peu de la gauche de l'ecran : le dessus des blocs garde sa couleur,
+  // la face avant est un peu plus sombre et la face de droite est dans l'ombre
   const lumiere = useMemo(() => {
     const soleil = new DirectionalLight({ color: [255, 255, 255], intensity: 1, direction: [0, 0, -1] });
     const effet = new LightingEffect({ ambiante: new AmbientLight({ color: [255, 255, 255], intensity: 1 }), soleil });
@@ -274,7 +286,12 @@ export default function App() {
     const c = viewport.cameraPosition;
     const vc = [c[0] - t[0], c[1] - t[1], c[2] - t[2]];
     const nv = Math.hypot(vc[0], vc[1], vc[2]);
-    const l = [0, 1, 2].map((i) => t[i] / nt + (0.4 * vc[i]) / nv);
+    const haut = t.map((x) => x / nt);
+    const vers = vc.map((x) => x / nv);
+    // droite de l'ecran : produit vectoriel de la verticale et de la direction de la camera
+    const droite = [haut[1] * vers[2] - haut[2] * vers[1], haut[2] * vers[0] - haut[0] * vers[2], haut[0] * vers[1] - haut[1] * vers[0]];
+    const nd = Math.hypot(droite[0], droite[1], droite[2]) || 1;
+    const l = [0, 1, 2].map((i) => haut[i] + 0.4 * vers[i] - (0.35 * droite[i]) / nd);
     const nl = Math.hypot(l[0], l[1], l[2]);
     lumiere.soleil.direction = l.map((x) => -x / nl);
   }
@@ -321,6 +338,12 @@ export default function App() {
   const arete = ARETE_KM[affiche.r];
   const echelle = donnees && !cumul ? echellePeriode(mesure, fin - debut + 1, nAnnees) : 1;
   const seuils = seuilsPour(mesure, echelle);
+  const cleSeuils = seuils.join(',');
+  // on ne garde que les hexagones dessines : les tres petites pertes ne sont ni colorees ni en relief
+  const hexagones = useMemo(
+    () => affiche.hexagones.filter((d) => visible(mesure, valeur(d, mesure, debut, fin), seuils)),
+    [affiche, mesure, debut, fin, cleSeuils],
+  );
 
   const couches = donnees
     ? [
@@ -347,20 +370,25 @@ export default function App() {
         }),
         new H3HexagonLayer({
           id: `hexagones-${affiche.r}`,
-          data: affiche.hexagones,
+          data: hexagones,
           getHexagon: (d) => d.h,
           getFillColor: (d) => couleur(mesure, valeur(d, mesure, debut, fin), seuils),
           getElevation: (d) => hauteur(valeur(d, mesure, debut, fin), echelle, arete),
           highPrecision: true,
-          coverage: 1,
-          stroked: false,
+          // a plat : une mosaique, avec un liseré couleur papier entre les hexagones. En relief : des
+          // blocs un peu espaces, sans liseré
+          coverage: relief ? 0.86 : 1,
+          stroked: !relief,
+          getLineColor: [...PAPIER, 170],
+          getLineWidth: 1,
+          lineWidthUnits: 'pixels',
           extruded: relief,
           // le reglage « hauteur » passe par l'echelle de la couche : rien n'est recalcule, et les
           // colonnes suivent le curseur sans attendre
           elevationScale: facteur,
-          // avec la lumiere ambiante (1) et la lumiere du dessus (1), le dessus des colonnes recoit
-          // environ 0,55 + 0,5 = 1 : il garde sa couleur, et les cotes sont plus sombres
-          material: { ambient: 0.55, diffuse: 0.5, shininess: 8, specularColor: [10, 10, 10] },
+          // le dessus des blocs recoit environ 0,46 + 0,6 x 0,88 = 1 : il garde sa couleur. La face
+          // avant descend vers 0,65 et la face a l'ombre vers 0,46
+          material: { ambient: 0.46, diffuse: 0.6, shininess: 8, specularColor: [10, 10, 10] },
           pickable: true,
           autoHighlight: true,
           highlightColor: [29, 28, 26, 70],
@@ -376,18 +404,6 @@ export default function App() {
         }),
       ]
     : [];
-
-  function allerVers(centre) {
-    touche.current = true;
-    setVue({
-      ...vue,
-      longitude: centre[0],
-      latitude: centre[1],
-      zoom: 4.3,
-      transitionDuration: 1600,
-      transitionInterpolator: new LinearInterpolator(['longitude', 'latitude', 'zoom']),
-    });
-  }
 
   function revenirAuGlobe() {
     touche.current = true;
@@ -412,8 +428,18 @@ export default function App() {
     });
   }
 
+  // trois bandes : le bandeau du titre, la carte, la frise des annees (repliable)
   return (
     <div className="appli">
+      <Bandeau
+        donnees={donnees}
+        erreur={erreur}
+        periode={periode}
+        relief={relief}
+        basculerRelief={basculerRelief}
+        revenirAuGlobe={revenirAuGlobe}
+        chargement={chargement}
+      />
       <main className="carte" ref={carte}>
         {vue && (
           <DeckGL
@@ -440,26 +466,28 @@ export default function App() {
         {montrerBord && (
           <div className="bord-globe" style={{ left: bord.cx - bord.rx, top: bord.cy - bord.ry, width: 2 * bord.rx, height: 2 * bord.ry }} />
         )}
-        <Panneau
+        <Habillage
           donnees={donnees}
-          erreur={erreur}
           mesure={mesure}
           setMesure={setMesure}
           periode={periode}
-          setPeriode={choisirPeriode}
           cumul={cumul}
-          choisirCumul={choisirCumul}
-          lecture={lecture}
-          lancerLecture={lancerLecture}
           relief={relief}
-          basculerRelief={basculerRelief}
           facteur={facteur}
           setFacteur={setFacteur}
-          revenirAuGlobe={revenirAuGlobe}
-          chargement={chargement}
-          allerVers={allerVers}
         />
       </main>
+      <Pied
+        donnees={donnees}
+        periode={periode}
+        setPeriode={choisirPeriode}
+        cumul={cumul}
+        choisirCumul={choisirCumul}
+        lecture={lecture}
+        lancerLecture={lancerLecture}
+        replie={replie}
+        setReplie={setReplie}
+      />
     </div>
   );
 }

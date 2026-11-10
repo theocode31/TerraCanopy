@@ -1,5 +1,5 @@
 """Fond de carte pour Terra Canopy : relief ombre de Natural Earth (Gray Earth with Shaded Relief,
-Hypsography and Ocean Bottom, 1:50m), colore en creme pour les terres et en bleu pour l'ocean.
+Hypsography and Ocean Bottom, 1:50m), colore en gris clair pour les terres et en bleu profond pour l'ocean.
 
 usage : python -I fond_relief.py <zip> <terres.json> <sortie.jpg> <apercu.png>
 """
@@ -13,8 +13,8 @@ from PIL import Image, ImageDraw, ImageFilter
 
 Image.MAX_IMAGE_PIXELS = None
 LARGEUR, HAUTEUR = 4096, 2048
-TERRE = np.array([238, 232, 217], dtype=np.float32)
-OCEAN = np.array([172, 203, 222], dtype=np.float32)
+TERRE = np.array([224, 223, 219], dtype=np.float32)
+OCEAN = np.array([118, 160, 196], dtype=np.float32)
 
 zip_chemin, terres_chemin, sortie, apercu = map(Path, sys.argv[1:5])
 

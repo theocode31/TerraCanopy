@@ -78,6 +78,14 @@ Le style « écran de contrôle » faisait trop gadget, alors je suis reparti ve
 
 Ensuite j'ai tout passé en Arial, c'est plus simple et plus net. Et j'ai voulu une planète plus jolie, un peu comme un globe d'atlas. Sous les hexagones, il y a maintenant le relief ombré de Natural Earth (Gray Earth with Shaded Relief, Hypsography and Ocean Bottom, au 1:50m), qui montre les montagnes et le fond des océans. Le script `pipeline/fond_relief.py` réduit l'image à 4096 × 2048 pixels, met les terres en crème et l'océan en bleu, en gardant les ombres. Au premier essai, l'aplat des terres et l'image du relief étaient à la même altitude et se mélangeaient à l'écran, avec des rectangles bizarres sur le Sahara. Maintenant l'aplat ne sert plus qu'en attendant que l'image soit chargée. Enfin le globe a un peu de volume : il est plus sombre vers le bord, un peu plus clair en haut à gauche, et il pose une ombre douce sur le papier.
 
+### 10/11/2026
+
+Quand je zoomais, la frise du bas cachait toujours une partie de la carte, surtout en relief. J'ai refait la mise en page en trois bandes. En haut, un bandeau avec le titre, la phrase et les boutons. Au milieu, la carte, sur laquelle il n'y a plus de texte posé. En bas, la frise, avec un bouton « Replier » qui la réduit à une seule ligne pour voir toute la carte. La légende et le lien « À propos des données » sont réunis dans une seule carte blanche en bas à gauche. J'ai enlevé le classement des dix pays et le lien vers le code sur le site (le lien reste dans « À propos »).
+
+Les couleurs faisaient délavé, donc j'ai mis plus de contraste. Les terres sont gris clair, l'océan est d'un bleu plus profond, et la palette commence au jaune soutenu au lieu du jaune presque blanc. Ce sont maintenant les 6 teintes les plus foncées de YlOrRd à 7 classes, jusqu'au bordeaux. Les hexagones sous le premier seuil (0,5 % de perte) ne sont plus dessinés du tout, et à la place on voit le relief. Les hexagones ont aussi un fin liseré couleur papier, ce qui fait une mosaïque.
+
+En relief, les colonnes faisaient une forêt de piquets. Elles sont deux fois moins hautes (100 % donne maintenant deux côtés d'hexagone au lieu de quatre), un peu espacées, et la lumière vient d'en haut à gauche. Le dessus garde sa couleur, la face avant est un peu plus sombre et la face de droite est dans l'ombre. Ça fait des blocs plutôt que des bâtons.
+
 ## Ce que montre la carte
 
 | | Ce projet | Global Forest Watch |
@@ -137,9 +145,10 @@ pipeline/
   agreger_tuile.py     une tuile Hansen -> hexagones H3 de résolution 6 (forêt 2000 et perte par an)
   lancer_pipeline.py   télécharge, résume et supprime les 280 tuiles, les tropiques d'abord
   exporter_web.py      fusionne les tuiles, calcule les résolutions 5 à 2 et les pays, coupe en paquets
+  fond_relief.py       le fond de carte : relief ombré de Natural Earth, terres en gris et océan en bleu
 web/
   src/App.jsx          le globe (deck.gl) et le choix de la résolution selon le zoom
-  src/Panneau.jsx      le texte posé sur le globe : phrase de la période, frise des années, légende, pays, réglages
+  src/Panneau.jsx      le bandeau du titre, la carte de légende, la frise des années (repliable), le réglage du relief
   src/donnees.js       chargement des paquets et sommes cumulées
   src/couleurs.js      couleurs et seuils
   public/data/         hexagones et résumés produits par le pipeline
