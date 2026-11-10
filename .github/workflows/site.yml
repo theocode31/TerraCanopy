@@ -1,5 +1,3 @@
-# Construit le site (web/) et le publie sur GitHub Pages a chaque push sur main.
-# A activer une fois dans Settings > Pages > Source : GitHub Actions.
 name: Site GitHub Pages
 
 on:
@@ -45,5 +43,4 @@ jobs:
       - id: deploiement
         uses: actions/deploy-pages@v4
         with:
-          # GitHub Pages met parfois plus de 10 min (le delai par defaut) a publier
           timeout: 1800000

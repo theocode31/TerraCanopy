@@ -1,6 +1,3 @@
-// Chargement des fichiers produits par pipeline/exporter_web.py.
-// Une ligne d'hexagone : [h3, code pays, foret 2000 (ha), [perte 2001, ..., perte 2025] (ha)].
-// Pour chaque hexagone on garde les sommes cumulees des pertes : perte de a a b = cumul[b + 1] - cumul[a].
 import { cellArea } from 'h3-js';
 
 const base = import.meta.env.BASE_URL;
@@ -20,7 +17,6 @@ function preparer(lignes) {
 }
 
 export async function chargerBase() {
-  // noms des pays (pipeline/noms_pays.py) : sans eux, le site marche quand meme
   const [resume, index, r2, r3, terres, noms] = await Promise.all([
     ...['resume.json', 'index.json', 'r2.json', 'r3.json', 'terres.json'].map(lireJson),
     lireJson('noms.json').catch(() => []),
@@ -39,7 +35,6 @@ export async function chargerBase() {
 
 const cache = new Map();
 
-// paquet = les hexagones de resolution r qui descendent d'un meme parent (r - 4)
 export function chargerPaquet(r, parent) {
   const cle = `${r}/${parent}`;
   if (!cache.has(cle)) {
@@ -55,10 +50,8 @@ export function perte(d, debut, fin) {
   return d.cumul[fin + 1] - d.cumul[debut];
 }
 
-// valeur affichee selon la mesure, en % : on divise par la surface de l'hexagone (ou par sa foret)
-// pour que les couleurs veuillent dire la meme chose quelle que soit la taille des hexagones
 export function valeur(d, mesure, debut, fin) {
-  if (mesure === 'foret') return d.foret / d.aire;               // ha par km2 = % de la surface
+  if (mesure === 'foret') return d.foret / d.aire;
   if (mesure === 'part') return (100 * perte(d, debut, fin)) / d.foret;
   return perte(d, debut, fin) / d.aire;
 }

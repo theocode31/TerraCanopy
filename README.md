@@ -130,7 +130,11 @@ Avec Python 3.11 ou plus :
 pip install -r requirements.txt
 python pipeline/lancer_pipeline.py      # télécharge et résume les 280 tuiles, reprend où il s'est arrêté
 python pipeline/exporter_web.py         # écrit les fichiers du site dans web/public/data
+python pipeline/noms_pays.py            # noms des pays pour le relief (après exporter_web.py)
+python -I pipeline/fond_relief.py <zip> <terres.json> <sortie.jpg> <apercu.png>
 ```
+
+Pour le fond de carte, `<zip>` est l'archive Gray Earth with Shaded Relief, Hypsography and Ocean Bottom (1:50m) de Natural Earth, et `<terres.json>` est `web/public/data/terres.json`. La sortie va dans `web/public/fond-relief.jpg`.
 
 Puis le site, avec Node 18 ou plus :
 

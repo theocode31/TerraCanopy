@@ -16,23 +16,22 @@ DOSSIER_H3 = RACINE / "data" / "h3_res6_par_tuile"
 ESPACE_MIN_GO = 3.0
 
 
-def lister_tuiles() -> list[str]:
+def lister_tuiles():
     r = requests.get(f"{BASE_URL}/lossyear.txt", timeout=60)
     r.raise_for_status()
     tuiles = [ligne.strip().rsplit("_lossyear_", 1)[1].removesuffix(".tif")
               for ligne in r.text.splitlines() if ligne.strip()]
-    # "10S_060W" : coin en haut a gauche a 10 degres sud, le centre est 5 degres plus bas
     def latitude_centre(tuile):
         lat = int(tuile[:2]) * (1 if tuile[2] == "N" else -1)
         return abs(lat - 5)
     return sorted(tuiles, key=latitude_centre)
 
 
-def url_couche(couche: str, tuile: str) -> str:
+def url_couche(couche, tuile):
     return f"{BASE_URL}/Hansen_{VERSION}_{couche}_{tuile}.tif"
 
 
-def telecharger(url: str, chemin: Path, essais: int = 4) -> Path:
+def telecharger(url, chemin, essais=4):
     if chemin.exists():
         return chemin
     partiel = chemin.with_suffix(".part")
@@ -51,17 +50,17 @@ def telecharger(url: str, chemin: Path, essais: int = 4) -> Path:
     raise RuntimeError(f"impossible de telecharger {url}")
 
 
-def telecharger_tuile(tuile: str) -> tuple[Path, Path]:
+def telecharger_tuile(tuile):
     perte = telecharger(url_couche("lossyear", tuile), DOSSIER_TUILES / f"lossyear_{tuile}.tif")
     couvert = telecharger(url_couche("treecover2000", tuile), DOSSIER_TUILES / f"treecover2000_{tuile}.tif")
     return perte, couvert
 
 
-def espace_libre_go() -> float:
+def espace_libre_go():
     return shutil.disk_usage(RACINE).free / 1e9
 
 
-def main() -> None:
+def main():
     DOSSIER_TUILES.mkdir(parents=True, exist_ok=True)
     DOSSIER_H3.mkdir(parents=True, exist_ok=True)
     tuiles = sys.argv[1:] or lister_tuiles()
@@ -82,7 +81,6 @@ def main() -> None:
                 echecs.append(tuile)
                 print(f"{tuile} : {e}", flush=True)
                 perte = couvert = None
-            # la tuile d'apres se telecharge pendant qu'on calcule celle-ci
             suivante = pool.submit(telecharger_tuile, a_faire[i + 1]) if i + 1 < len(a_faire) else None
             if perte is None:
                 continue

@@ -2,7 +2,6 @@ import React, { useRef, useState } from 'react';
 import { sommePeriode, formaterHa, formaterPart } from './donnees.js';
 import { CLASSES, echellePeriode, seuilsPour, FACTEUR_MIN, FACTEUR_MAX } from './couleurs.js';
 
-// ce que montrent les couleurs du globe ; le choix se fait au-dessus de la legende
 const MESURES = [
   { cle: 'perte', nom: 'Perte' },
   { cle: 'part', nom: 'Part perdue' },
@@ -15,7 +14,6 @@ const ANNEES_REPERES = [2001, 2005, 2010, 2015, 2020, 2025];
 const nombre = (x) => String(x).replace('.', ',');
 const libellePeriode = (annees, debut, fin) => (debut === fin ? `${annees[debut]}` : `${annees[debut]} – ${annees[fin]}`);
 
-// bandeau du haut : le titre, la phrase qui donne les chiffres de la periode, et les boutons de vue
 export function Bandeau({ donnees, erreur, periode, relief, basculerRelief, revenirAuGlobe, chargement }) {
   const [debut, fin] = periode;
   let phrase;
@@ -54,8 +52,6 @@ function Legende({ mesure, setMesure, annees, debut, fin, cumul }) {
   const { couleurs } = CLASSES[mesure];
   const echelle = cumul ? 1 : echellePeriode(mesure, fin - debut + 1, annees.length);
   const seuils = seuilsPour(mesure, echelle);
-  // pour la perte et la part perdue, la premiere classe n'est pas dessinee : la barre commence au
-  // premier seuil
   const sansPremiere = couleurs[0] === null;
   const teintes = sansPremiere ? couleurs.slice(1) : couleurs;
   const quand = debut === fin ? `en ${annees[debut]}` : `de ${annees[debut]} à ${annees[fin]}`;
@@ -92,8 +88,6 @@ function Legende({ mesure, setMesure, annees, debut, fin, cumul }) {
   );
 }
 
-// ce qui est pose sur la carte : la carte de legende en bas a gauche (avec les liens), le volet
-// « a propos » au-dessus quand on l'ouvre, et le reglage de hauteur en haut a droite en relief
 export function Habillage({ donnees, mesure, setMesure, periode, cumul, relief, facteur, setFacteur }) {
   const [apropos, setApropos] = useState(false);
   if (!donnees) return null;
@@ -155,8 +149,6 @@ export function Habillage({ donnees, mesure, setMesure, periode, cumul, relief, 
   );
 }
 
-// frise des annees : la perte mondiale par an, et on choisit la periode en cliquant-glissant dessus.
-// En mode cumul, la periode part toujours de 2001 et un clic choisit l'annee de fin.
 function Frise({ annees, pertes, debut, fin, setPeriode, cumul, choisirCumul, lecture, lancerLecture, replier }) {
   const [survol, setSurvol] = useState(null);
   const depart = useRef(null);
@@ -245,7 +237,6 @@ function Frise({ annees, pertes, debut, fin, setPeriode, cumul, choisirCumul, le
   );
 }
 
-// pied de page : la frise, ou une seule ligne quand on l'a repliee pour voir toute la carte
 export function Pied({ donnees, periode, setPeriode, cumul, choisirCumul, lecture, lancerLecture, replie, setReplie }) {
   if (!donnees) return null;
   const { resume } = donnees;

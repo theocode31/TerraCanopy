@@ -18,32 +18,24 @@ import { couleur, visible, hauteur, echellePeriode, seuilsPour, FACTEUR_MIN, FAC
 import { Bandeau, Habillage, Pied } from './Panneau.jsx';
 
 const VUE_GLOBE = new GlobeView({ id: 'globe', resolution: 5 });
-// fond de carte : relief ombre de Natural Earth (1:50m, terres et fonds marins), colore en gris
-// clair pour les terres et en bleu profond pour l'ocean (script pipeline/fond_relief.py). L'ocean et
-// les terres en aplat servent le temps que l'image arrive.
 const FOND_RELIEF = `${import.meta.env.BASE_URL}fond-relief.jpg`;
 const OCEAN = [118, 160, 196];
 const TERRE = [224, 223, 219];
 const PAPIER = [246, 243, 236];
 const MONDE = [[[-180, 90], [0, 90], [180, 90], [180, -90], [0, -90], [-180, -90]]];
-const ARETE_KM = { 2: 182.5, 3: 69.0, 4: 26.07, 5: 9.85, 6: 3.72 }; // cote moyen des hexagones H3 (h3 4.5, average_hexagon_edge_length)
-const ARETE_MIN_PX = 3; // on prend la resolution la plus fine dont les hexagones font au moins ca a l'ecran
-const PAQUETS_MAX = 100; // vue inclinee : au-dela, on passe a la resolution du dessus
+const ARETE_KM = { 2: 182.5, 3: 69.0, 4: 26.07, 5: 9.85, 6: 3.72 };
+const ARETE_MIN_PX = 3;
+const PAQUETS_MAX = 100;
 const RAYON_TERRE_KM = 6371;
-const RAYON_GLOBE = 256; // rayon du globe dans les coordonnees internes de deck.gl
+const RAYON_GLOBE = 256;
 const INCLINAISON_RELIEF = 50;
-const INCLINAISON_GLOBE = 30; // en relief, quand on voit tout le globe (zoom sous 3,5)
-const PAS_LECTURE = 700; // ms par annee quand on lance l'accumulation : 2001 a 2025 en 17 s environ
-// noms des pays, en relief seulement : a partir du zoom 3,5 (celui ou le relief s'incline davantage),
-// avec un fondu sur 0,4 niveau de zoom. Chaque pays attend le zoom conseille par Natural Earth plus
-// 0,5 : le globe incline montre plus de pays qu'une carte a plat au meme zoom. Ils restent un peu
-// transparents, pour ne pas cacher les blocs
+const INCLINAISON_GLOBE = 30;
+const PAS_LECTURE = 700;
 const ZOOM_NOMS = 3.5;
 const FONDU_NOMS = 0.4;
 const DECALAGE_NOMS = 0.5;
 const OPACITE_NOMS = 0.9;
 
-// meridiens et paralleles tous les 30 degres
 const GRILLE = [
   ...[-150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150, 180].map((lon) => ({
     path: Array.from({ length: 81 }, (_, k) => [lon, -80 + 2 * k]),
@@ -53,7 +45,6 @@ const GRILLE = [
   })),
 ];
 
-// echelle du globe de deck.gl : 256 unites pour le rayon, multipliees par 2^zoom / (pi cos lat)
 function echelle(vue) {
   return Math.pow(2, vue.zoom) / (Math.PI * Math.cos((vue.latitude * Math.PI) / 180));
 }
@@ -65,9 +56,6 @@ function choisirResolution(vue) {
 }
 
 function rayonVoulu(largeur, hauteurPx) {
-  // avec la perspective, le globe parait environ 0,8 fois plus petit que le calcul : en visant la
-  // moitie du petit cote, il en occupe environ 80 %. Sur un ecran etroit, la legende prend le bas de
-  // la carte, et le globe reste au-dessus (170 px)
   const petit = Math.min(largeur, hauteurPx);
   if (largeur >= 760) return 0.5 * petit;
   return Math.max(0.3 * petit, Math.min(0.5 * petit, (hauteurPx / 2 - 170) / 0.78));
@@ -77,7 +65,6 @@ function zoomPourVoirLeGlobe(largeur, hauteurPx, latitude) {
   return Math.log2((rayonVoulu(largeur, hauteurPx) * Math.PI * Math.cos((latitude * Math.PI) / 180)) / RAYON_GLOBE);
 }
 
-// paquets a charger : on echantillonne l'ecran et on garde les parents qui existent
 function paquetsVisibles(viewport, r, disponibles) {
   const { width, height } = viewport;
   const parents = new Set();
@@ -93,8 +80,6 @@ function paquetsVisibles(viewport, r, disponibles) {
   return [...parents].sort();
 }
 
-// contour du globe a l'ecran, pour y tracer un trait fin : le bord visible est le cercle de la
-// sphere ou les rayons partant de la camera sont tangents
 function bordDuGlobe(viewport) {
   const c = viewport.cameraPosition;
   const d = Math.hypot(c[0], c[1], c[2]);
@@ -124,8 +109,6 @@ function bordDuGlobe(viewport) {
   return { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, rx: (x1 - x0) / 2, ry: (y1 - y0) / 2 };
 }
 
-// cos de l'angle entre la verticale d'un lieu et la direction de la camera : 1 quand on le voit
-// d'en haut, 0 au bord du globe, negatif derriere
 function vuDeHaut(viewport, [lon, lat]) {
   const p = viewport.projectPosition([lon, lat, 0]);
   const c = viewport.cameraPosition;
@@ -133,8 +116,6 @@ function vuDeHaut(viewport, [lon, lat]) {
   return (p[0] * v[0] + p[1] * v[1] + p[2] * v[2]) / (Math.hypot(p[0], p[1], p[2]) * Math.hypot(v[0], v[1], v[2]));
 }
 
-// nom en capitales ; un nom long passe sur deux lignes, coupe a l'espace le plus proche du milieu
-// (jamais au milieu d'un mot : « BOSNIE-HERZÉGOVINE » reste entier)
 function etiquette(nom) {
   const n = nom.toUpperCase();
   if (n.length <= 14 || !n.includes(' ')) return n;
@@ -178,17 +159,15 @@ export default function App() {
   const [periode, setPeriode] = useState([0, 24]);
   const [taille, setTaille] = useState(null);
   const [vue, setVue] = useState(null);
-  const [relief, setRelief] = useState(true); // le site s'ouvre en relief 3D
-  const [facteur, setFacteur] = useState(FACTEUR_DEPART); // multiplie la hauteur des colonnes
-  // cumul : la periode part toujours de 2001 et les seuils restent ceux des 25 ans, pour voir la
-  // perte s'accumuler. lecture : les annees defilent toutes seules.
+  const [relief, setRelief] = useState(true);
+  const [facteur, setFacteur] = useState(FACTEUR_DEPART);
   const [cumul, setCumul] = useState(false);
   const [lecture, setLecture] = useState(false);
   const [affiche, setAffiche] = useState({ r: 2, hexagones: [] });
   const [chargement, setChargement] = useState(false);
   const [fondRelief, setFondRelief] = useState(null);
-  const [replie, setReplie] = useState(false); // frise des annees repliee
-  const touche = useRef(false); // le globe tourne seul tant qu'on n'y a pas touche
+  const [replie, setReplie] = useState(false);
+  const touche = useRef(false);
   const carte = useRef(null);
 
   useEffect(() => {
@@ -200,23 +179,18 @@ export default function App() {
       .catch((e) => setErreur(e.message));
   }, []);
 
-  // l'image du relief est chargee a part : tant qu'elle n'est pas la, on affiche l'ocean et les
-  // terres en aplat, puis on les retire (deux surfaces a la meme altitude se melangent a l'ecran)
   useEffect(() => {
     const image = new Image();
     image.onload = () => setFondRelief(image);
     image.src = FOND_RELIEF;
   }, []);
 
-  // taille de la zone de carte, pour calculer le zoom de depart et ce qui est visible
   useEffect(() => {
     const observer = new ResizeObserver(([e]) => setTaille({ largeur: e.contentRect.width, hauteur: e.contentRect.height }));
     observer.observe(carte.current);
     return () => observer.disconnect();
   }, []);
 
-  // vue de depart : celle de l'adresse (#longitude,latitude,zoom[,inclinaison,orientation][,3d])
-  // si on l'a partagee, sinon tout le globe
   useEffect(() => {
     if (!taille || vue) return;
     const morceaux = window.location.hash.slice(1).split(',');
@@ -239,8 +213,6 @@ export default function App() {
     }
   }, [taille, vue]);
 
-  // tant qu'on n'a pas touche au globe, il garde la bonne taille si la zone de carte change
-  // (chargement de la frise, fenetre redimensionnee)
   useEffect(() => {
     if (!taille || touche.current) return;
     setVue((v) => (v ? { ...v, zoom: zoomPourVoirLeGlobe(taille.largeur, taille.hauteur, v.latitude) } : v));
@@ -258,7 +230,6 @@ export default function App() {
     return () => clearTimeout(id);
   }, [vue, relief, facteur]);
 
-  // lecture de l'accumulation : une annee de plus a chaque pas, jusqu'a 2025
   const nAnnees = donnees ? donnees.resume.annees.length : 0;
   useEffect(() => {
     if (!lecture) return undefined;
@@ -271,7 +242,6 @@ export default function App() {
 
   function lancerLecture() {
     if (lecture) return setLecture(false);
-    // on reprend ou on etait si une lecture a ete mise en pause, sinon on repart de 2001
     if (!(cumul && periode[1] < nAnnees - 1)) setPeriode([0, 0]);
     setCumul(true);
     setLecture(true);
@@ -288,7 +258,6 @@ export default function App() {
     setPeriode(p);
   }
 
-  // rotation lente au depart
   useEffect(() => {
     if (!vue || touche.current) return undefined;
     let id = requestAnimationFrame(function tourner() {
@@ -299,11 +268,6 @@ export default function App() {
     return () => cancelAnimationFrame(id);
   }, [vue === null]);
 
-  // en relief, la camera inclinee fait descendre le globe a l'ecran : son centre passe sous le point
-  // vise, d'environ 0,44 fois son rayon apparent a 30 degres (0,35 fois le rayon voulu). La scene
-  // est donc plus haute que la carte de cette marge en haut et en bas, et on la remonte d'autant en
-  // relief, en meme temps que la camera s'incline. Sur un ecran etroit, la legende couvre le bas de
-  // la carte : on remonte un peu plus
   const marge = taille ? Math.round((taille.largeur < 760 ? 0.6 : 0.35) * rayonVoulu(taille.largeur, taille.hauteur)) : 0;
   const viewport = useMemo(
     () => (vue && taille ? new GlobeViewport({ ...vue, width: taille.largeur, height: taille.hauteur + 2 * marge }) : null),
@@ -311,9 +275,6 @@ export default function App() {
   );
   const bord = viewport ? bordDuGlobe(viewport) : null;
 
-  // relief : une lumiere qui suit la vue. Elle tombe d'en haut (la verticale du point vise), un peu
-  // du cote de la camera et un peu de la gauche de l'ecran : le dessus des blocs garde sa couleur,
-  // la face avant est un peu plus sombre et la face de droite est dans l'ombre
   const lumiere = useMemo(() => {
     const soleil = new DirectionalLight({ color: [255, 255, 255], intensity: 1, direction: [0, 0, -1] });
     const effet = new LightingEffect({ ambiante: new AmbientLight({ color: [255, 255, 255], intensity: 1 }), soleil });
@@ -327,7 +288,6 @@ export default function App() {
     const nv = Math.hypot(vc[0], vc[1], vc[2]);
     const haut = t.map((x) => x / nt);
     const vers = vc.map((x) => x / nv);
-    // droite de l'ecran : produit vectoriel de la verticale et de la direction de la camera
     const droite = [haut[1] * vers[2] - haut[2] * vers[1], haut[2] * vers[0] - haut[0] * vers[2], haut[0] * vers[1] - haut[1] * vers[0]];
     const nd = Math.hypot(droite[0], droite[1], droite[2]) || 1;
     const l = [0, 1, 2].map((i) => haut[i] + 0.4 * vers[i] - (0.35 * droite[i]) / nd);
@@ -335,15 +295,9 @@ export default function App() {
     lumiere.soleil.direction = l.map((x) => -x / nl);
   }
   const montrerBord = bord && taille && bord.rx < 4 * Math.max(taille.largeur, taille.hauteur);
-  // l'ombrage qui donne du volume au globe s'efface quand on s'approche : de pres, il assombrirait
-  // seulement un cote de l'ecran
   const grand = taille ? Math.max(taille.largeur, taille.hauteur) : 1;
   const opaciteVolume = montrerBord ? Math.min(1, Math.max(0, (1.2 * grand - bord.rx) / (0.5 * grand))) : 0;
 
-  // noms des pays en relief, ecrits par le navigateur par-dessus la carte (le texte est net et les
-  // lettres peuvent avoir une tranche). Pour chaque nom : sa place a l'ecran, sa taille (il rapetisse
-  // avec la distance, comme les blocs : rapport des profondeurs w entre le point vise et le nom) et
-  // son opacite (fondu quand on passe son zoom, puis vers le bord du globe)
   const nomsAffiches = [];
   if (donnees && viewport && relief && vue.zoom > ZOOM_NOMS - FONDU_NOMS) {
     const m = viewport.pixelProjectionMatrix;
@@ -351,7 +305,6 @@ export default function App() {
     const w0 = profondeur(viewport.projectPosition([vue.longitude, vue.latitude, 0]));
     for (const d of donnees.noms) {
       const zoomVoulu = Math.max(ZOOM_NOMS, d.zoomMin + DECALAGE_NOMS);
-      // chaque facteur est borne a [0, 1] : deux facteurs negatifs donneraient une opacite positive
       const parZoom = Math.min(1, Math.max(0, (vue.zoom - zoomVoulu + FONDU_NOMS) / FONDU_NOMS));
       if (parZoom === 0) continue;
       const opacite = parZoom * Math.min(1, Math.max(0, (vuDeHaut(viewport, d.position) - 0.1) / 0.15));
@@ -361,12 +314,11 @@ export default function App() {
       const w = profondeur(viewport.projectPosition([d.position[0], d.position[1], 0]));
       nomsAffiches.push({ ...d, x, y, w, grossissement: Math.min(1.5, Math.max(0.55, w0 / w)), opacite });
     }
-    nomsAffiches.sort((a, b) => b.w - a.w); // les plus lointains d'abord, les proches passent devant
+    nomsAffiches.sort((a, b) => b.w - a.w);
   }
 
   const resolution = vue ? choisirResolution(vue) : 2;
 
-  // les hexagones a afficher : on garde l'ancien affichage tant que les nouveaux paquets ne sont pas la
   const cleVisible = useMemo(() => {
     if (!donnees || !viewport) return `${Math.min(resolution, 3)}`;
     for (let r = resolution; r > 3; r--) {
@@ -402,7 +354,6 @@ export default function App() {
   const echelle = donnees && !cumul ? echellePeriode(mesure, fin - debut + 1, nAnnees) : 1;
   const seuils = seuilsPour(mesure, echelle);
   const cleSeuils = seuils.join(',');
-  // on ne garde que les hexagones dessines : les tres petites pertes ne sont ni colorees ni en relief
   const hexagones = useMemo(
     () => affiche.hexagones.filter((d) => visible(mesure, valeur(d, mesure, debut, fin), seuils)),
     [affiche, mesure, debut, fin, cleSeuils],
@@ -438,19 +389,13 @@ export default function App() {
           getFillColor: (d) => couleur(mesure, valeur(d, mesure, debut, fin), seuils),
           getElevation: (d) => hauteur(valeur(d, mesure, debut, fin), echelle, arete),
           highPrecision: true,
-          // a plat : une mosaique, avec un liseré couleur papier entre les hexagones. En relief : des
-          // blocs un peu espaces, sans liseré
           coverage: relief ? 0.86 : 1,
           stroked: !relief,
           getLineColor: [...PAPIER, 170],
           getLineWidth: 1,
           lineWidthUnits: 'pixels',
           extruded: relief,
-          // le reglage « hauteur » passe par l'echelle de la couche : rien n'est recalcule, et les
-          // colonnes suivent le curseur sans attendre
           elevationScale: facteur,
-          // le dessus des blocs recoit environ 0,46 + 0,6 x 0,88 = 1 : il garde sa couleur. La face
-          // avant descend vers 0,65 et la face a l'ombre vers 0,46
           material: { ambient: 0.46, diffuse: 0.6, shininess: 8, specularColor: [10, 10, 10] },
           pickable: true,
           autoHighlight: true,
@@ -491,7 +436,6 @@ export default function App() {
     });
   }
 
-  // trois bandes : le bandeau du titre, la carte, la frise des annees (repliable)
   return (
     <div className="appli">
       <Bandeau
@@ -523,8 +467,6 @@ export default function App() {
                 getTooltip={({ object }) => (donnees ? infobulle(object, donnees, debut, fin) : null)}
               />
             )}
-            {/* volume du globe : un ombrage doux vers le bord et un peu de clarte en haut a gauche, puis
-                le trait gris fin du bord */}
             {montrerBord && opaciteVolume > 0 && (
               <div
                 className="volume-globe"

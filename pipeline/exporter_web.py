@@ -1,13 +1,3 @@
-# Rassemble les CSV de chaque tuile (hexagones de resolution 6) et prepare les fichiers du site.
-# - un hexagone a cheval sur deux tuiles apparait dans deux CSV : on additionne ;
-# - les resolutions 5 a 2 s'obtiennent en additionnant les enfants ;
-# - chaque hexagone de resolution 6 est rattache au pays qui contient son centre (Natural Earth 1:50m),
-#   ou au pays le plus proche si le centre tombe dans l'eau ; plus haut, c'est le pays de l'enfant
-#   qui a le plus de foret ;
-# - les resolutions 2 et 3 tiennent dans un fichier chacune. Les resolutions 4, 5 et 6 sont coupees
-#   en paquets (un par parent 4 niveaux plus haut, 2 401 hexagones au plus) que le site charge
-#   seulement quand on zoome dessus.
-# Lancer depuis la racine du projet, apres lancer_pipeline.py : python pipeline/exporter_web.py
 import io
 import json
 import shutil
@@ -28,7 +18,7 @@ RACINE = Path(__file__).resolve().parent.parent
 DOSSIER_PAYS = RACINE / "data" / "natural_earth"
 SORTIE = RACINE / "web" / "public" / "data"
 URL_PAYS = "https://naciscdn.org/naturalearth/50m/cultural/ne_50m_admin_0_countries.zip"
-FORET_MIN_HA = {2: 10, 3: 10, 4: 10, 5: 10, 6: 5}  # en dessous, le pourcentage perdu ne veut rien dire
+FORET_MIN_HA = {2: 10, 3: 10, 4: 10, 5: 10, 6: 5}
 COLONNES = ["foret_2000"] + COLONNES_PERTE
 
 
@@ -59,7 +49,6 @@ def rattacher_pays(df, pays):
     code = dedans.code.copy()
     manquants = code.isna()
     if manquants.any():
-        # centre dans la mer ou un lac : pays le plus proche (distance en degres, suffisant ici)
         proches = gpd.sjoin_nearest(points[manquants], pays, how="left")
         proches = proches[~proches.index.duplicated()]
         code[manquants] = proches.code
@@ -67,7 +56,6 @@ def rattacher_pays(df, pays):
 
 
 def niveau_parent(enfants, resolution):
-    # additionne les enfants ; le pays est celui de l'enfant qui a le plus de foret
     parent = [h3.cell_to_parent(c, resolution) for c in enfants.h3]
     enfants = enfants.assign(parent=parent)
     sommes = enfants.groupby("parent")[COLONNES].sum()
@@ -76,7 +64,6 @@ def niveau_parent(enfants, resolution):
 
 
 def en_lignes(df):
-    # format compact : [h3, code pays, foret 2000 (ha), [pertes 2001..2025 (ha)]]
     foret = df.foret_2000.round().astype(int).tolist()
     pertes = df[COLONNES_PERTE].round().astype(int).values.tolist()
     return [[h, p, f, l] for h, p, f, l in zip(df.h3, df.pays, foret, pertes)]
@@ -99,7 +86,6 @@ def main():
     for r in (5, 4, 3, 2):
         niveaux[r] = niveau_parent(niveaux[r + 1], r)
 
-    # anciens fichiers (version planisphere) et anciens paquets
     for nom in ("hex_res3.json", "hex_res4.json", "frontieres.json"):
         (SORTIE / nom).unlink(missing_ok=True)
     for r in (4, 5, 6):
@@ -121,7 +107,6 @@ def main():
         print(f"resolution {r} : {len(df)} hexagones, {len(index[r])} paquets, {taille:.0f} Mo")
     ecrire_json(SORTIE / "index.json", index)
 
-    # pays : totaux et centre (moyenne des centres d'hexagones ponderee par la foret)
     noms = pays.drop_duplicates("code").set_index("code").nom
     par_pays = []
     for code, g in res6.groupby("pays"):
@@ -134,7 +119,6 @@ def main():
             "centre": [round(float((g.lon * poids).sum()), 3), round(float((g.lat * poids).sum()), 3)],
         })
 
-    # terres pour le globe : polygones des pays simplifies, coordonnees au centieme de degre
     terres = pays[["geometry"]].copy()
     terres["geometry"] = shapely.set_precision(terres.geometry.simplify(0.03).values, 0.01)
     terres = terres[~terres.geometry.is_empty]
