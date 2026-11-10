@@ -88,6 +88,8 @@ En relief, les colonnes faisaient une forêt de piquets. Elles sont deux fois mo
 
 Plus tard dans la journée, j'ai ajouté les noms des pays, mais seulement en relief et quand on s'approche (à partir du zoom 3,5). Ils sont pris dans Natural Earth, qui donne pour chaque pays un point où écrire son nom et un zoom conseillé pour l'écrire : les grands pays apparaissent d'abord, les petits ensuite. J'ai ajouté un demi-niveau à ce zoom, parce que le globe incliné montre plus de pays qu'une carte à plat. Les noms font face à la caméra et rapetissent avec la distance, comme les blocs. La première version, écrite par deck.gl en capitales grises, était floue et pas très belle. Maintenant c'est le navigateur qui écrit les noms par-dessus la carte : des capitales blanches espacées, posées sur une petite tranche grise avec une ombre douce, ce qui leur donne l'air d'être en volume. Ils sont un peu transparents pour ne pas cacher les blocs.
 
+Enfin, le site s'ouvre maintenant directement en relief 3D, avec le globe incliné à 30°. L'inclinaison faisait descendre le globe à l'écran (son centre passe sous le point visé par la caméra), donc la scène est un peu plus haute que la carte et on la remonte en relief, en même temps que la caméra s'incline. Le bouton « Vue à plat » remet tout comme avant.
+
 ## Ce que montre la carte
 
 | | Ce projet | Global Forest Watch |

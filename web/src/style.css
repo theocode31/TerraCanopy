@@ -32,6 +32,9 @@ body {
   width: 100vw; height: 100vh; height: 100dvh;
 }
 .carte { position: relative; min-height: 0; overflow: hidden; background: var(--papier); }
+/* la scene (globe, bord, noms) depasse la carte en haut et en bas ; en relief on la remonte, au
+   rythme de l'inclinaison de la camera (0,9 s) */
+.scene { position: absolute; left: 0; right: 0; transition: transform 0.9s linear; }
 
 /* bord du globe : un trait gris fin et une ombre douce posee sur le papier */
 .bord-globe {

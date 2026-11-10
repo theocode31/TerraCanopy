@@ -32,6 +32,7 @@ const PAQUETS_MAX = 100; // vue inclinee : au-dela, on passe a la resolution du 
 const RAYON_TERRE_KM = 6371;
 const RAYON_GLOBE = 256; // rayon du globe dans les coordonnees internes de deck.gl
 const INCLINAISON_RELIEF = 50;
+const INCLINAISON_GLOBE = 30; // en relief, quand on voit tout le globe (zoom sous 3,5)
 const PAS_LECTURE = 700; // ms par annee quand on lance l'accumulation : 2001 a 2025 en 17 s environ
 // noms des pays, en relief seulement : a partir du zoom 3,5 (celui ou le relief s'incline davantage),
 // avec un fondu sur 0,4 niveau de zoom. Chaque pays attend le zoom conseille par Natural Earth plus
@@ -63,14 +64,17 @@ function choisirResolution(vue) {
   return 2;
 }
 
-function zoomPourVoirLeGlobe(largeur, hauteurPx, latitude) {
+function rayonVoulu(largeur, hauteurPx) {
   // avec la perspective, le globe parait environ 0,8 fois plus petit que le calcul : en visant la
   // moitie du petit cote, il en occupe environ 80 %. Sur un ecran etroit, la legende prend le bas de
   // la carte, et le globe reste au-dessus (170 px)
   const petit = Math.min(largeur, hauteurPx);
-  let rayonVoulu = 0.5 * petit;
-  if (largeur < 760) rayonVoulu = Math.max(0.3 * petit, Math.min(rayonVoulu, (hauteurPx / 2 - 170) / 0.78));
-  return Math.log2((rayonVoulu * Math.PI * Math.cos((latitude * Math.PI) / 180)) / RAYON_GLOBE);
+  if (largeur >= 760) return 0.5 * petit;
+  return Math.max(0.3 * petit, Math.min(0.5 * petit, (hauteurPx / 2 - 170) / 0.78));
+}
+
+function zoomPourVoirLeGlobe(largeur, hauteurPx, latitude) {
+  return Math.log2((rayonVoulu(largeur, hauteurPx) * Math.PI * Math.cos((latitude * Math.PI) / 180)) / RAYON_GLOBE);
 }
 
 // paquets a charger : on echantillonne l'ecran et on garde les parents qui existent
@@ -174,7 +178,7 @@ export default function App() {
   const [periode, setPeriode] = useState([0, 24]);
   const [taille, setTaille] = useState(null);
   const [vue, setVue] = useState(null);
-  const [relief, setRelief] = useState(false);
+  const [relief, setRelief] = useState(true); // le site s'ouvre en relief 3D
   const [facteur, setFacteur] = useState(FACTEUR_DEPART); // multiplie la hauteur des colonnes
   // cumul : la periode part toujours de 2001 et les seuils restent ceux des 25 ans, pour voir la
   // perte s'accumuler. lecture : les annees defilent toutes seules.
@@ -231,7 +235,7 @@ export default function App() {
       });
     } else {
       const latitude = 8;
-      setVue({ longitude: -35, latitude, zoom: zoomPourVoirLeGlobe(taille.largeur, taille.hauteur, latitude), pitch: 0, bearing: 0 });
+      setVue({ longitude: -35, latitude, zoom: zoomPourVoirLeGlobe(taille.largeur, taille.hauteur, latitude), pitch: INCLINAISON_GLOBE, bearing: 0 });
     }
   }, [taille, vue]);
 
@@ -295,9 +299,15 @@ export default function App() {
     return () => cancelAnimationFrame(id);
   }, [vue === null]);
 
+  // en relief, la camera inclinee fait descendre le globe a l'ecran : son centre passe sous le point
+  // vise, d'environ 0,44 fois son rayon apparent a 30 degres (0,35 fois le rayon voulu). La scene
+  // est donc plus haute que la carte de cette marge en haut et en bas, et on la remonte d'autant en
+  // relief, en meme temps que la camera s'incline. Sur un ecran etroit, la legende couvre le bas de
+  // la carte : on remonte un peu plus
+  const marge = taille ? Math.round((taille.largeur < 760 ? 0.6 : 0.35) * rayonVoulu(taille.largeur, taille.hauteur)) : 0;
   const viewport = useMemo(
-    () => (vue && taille ? new GlobeViewport({ ...vue, width: taille.largeur, height: taille.hauteur }) : null),
-    [vue, taille],
+    () => (vue && taille ? new GlobeViewport({ ...vue, width: taille.largeur, height: taille.hauteur + 2 * marge }) : null),
+    [vue, taille, marge],
   );
   const bord = viewport ? bordDuGlobe(viewport) : null;
 
@@ -347,7 +357,7 @@ export default function App() {
       const opacite = parZoom * Math.min(1, Math.max(0, (vuDeHaut(viewport, d.position) - 0.1) / 0.15));
       if (opacite === 0) continue;
       const [x, y] = viewport.project([d.position[0], d.position[1], 0]);
-      if (x < -150 || y < -60 || x > taille.largeur + 150 || y > taille.hauteur + 60) continue;
+      if (x < -150 || y < -60 || x > viewport.width + 150 || y > viewport.height + 60) continue;
       const w = profondeur(viewport.projectPosition([d.position[0], d.position[1], 0]));
       nomsAffiches.push({ ...d, x, y, w, grossissement: Math.min(1.5, Math.max(0.55, w0 / w)), opacite });
     }
@@ -474,7 +484,7 @@ export default function App() {
     setRelief(actif);
     setVue({
       ...vue,
-      pitch: actif ? (vue.zoom < 3.5 ? 30 : INCLINAISON_RELIEF) : 0,
+      pitch: actif ? (vue.zoom < 3.5 ? INCLINAISON_GLOBE : INCLINAISON_RELIEF) : 0,
       bearing: actif ? vue.bearing : 0,
       transitionDuration: 900,
       transitionInterpolator: new LinearInterpolator(['pitch', 'bearing']),
@@ -494,46 +504,53 @@ export default function App() {
         chargement={chargement}
       />
       <main className="carte" ref={carte}>
-        {vue && (
-          <DeckGL
-            views={VUE_GLOBE}
-            viewState={vue}
-            onViewStateChange={({ viewState }) => setVue(viewState)}
-            onInteractionStateChange={(s) => {
-              if (s.isDragging || s.isZooming || s.isPanning || s.isRotating) touche.current = true;
-            }}
-            controller={{ inertia: 300, dragRotate: true }}
-            layers={couches}
-            effects={[lumiere.effet]}
-            getTooltip={({ object }) => (donnees ? infobulle(object, donnees, debut, fin) : null)}
-          />
-        )}
-        {/* volume du globe : un ombrage doux vers le bord et un peu de clarte en haut a gauche, puis
-            le trait gris fin du bord */}
-        {montrerBord && opaciteVolume > 0 && (
+        {taille && (
           <div
-            className="volume-globe"
-            style={{ left: bord.cx - bord.rx, top: bord.cy - bord.ry, width: 2 * bord.rx, height: 2 * bord.ry, opacity: opaciteVolume }}
-          />
-        )}
-        {montrerBord && (
-          <div className="bord-globe" style={{ left: bord.cx - bord.rx, top: bord.cy - bord.ry, width: 2 * bord.rx, height: 2 * bord.ry }} />
-        )}
-        {nomsAffiches.length > 0 && (
-          <div className="noms-pays" aria-hidden="true">
-            {nomsAffiches.map((d) => (
-              <div
-                key={d.nom}
-                className="nom-pays"
-                style={{
-                  fontSize: d.zoomMin <= 2 ? 15 : d.zoomMin <= 3 ? 13 : 12,
-                  transform: `translate(${d.x}px, ${d.y}px) translate(-50%, -50%) scale(${d.grossissement})`,
-                  opacity: OPACITE_NOMS * d.opacite,
+            className="scene"
+            style={{ top: -marge, height: taille.hauteur + 2 * marge, transform: `translateY(${relief ? -marge : 0}px)` }}
+          >
+            {vue && (
+              <DeckGL
+                views={VUE_GLOBE}
+                viewState={vue}
+                onViewStateChange={({ viewState }) => setVue(viewState)}
+                onInteractionStateChange={(s) => {
+                  if (s.isDragging || s.isZooming || s.isPanning || s.isRotating) touche.current = true;
                 }}
-              >
-                {etiquette(d.nom)}
+                controller={{ inertia: 300, dragRotate: true }}
+                layers={couches}
+                effects={[lumiere.effet]}
+                getTooltip={({ object }) => (donnees ? infobulle(object, donnees, debut, fin) : null)}
+              />
+            )}
+            {/* volume du globe : un ombrage doux vers le bord et un peu de clarte en haut a gauche, puis
+                le trait gris fin du bord */}
+            {montrerBord && opaciteVolume > 0 && (
+              <div
+                className="volume-globe"
+                style={{ left: bord.cx - bord.rx, top: bord.cy - bord.ry, width: 2 * bord.rx, height: 2 * bord.ry, opacity: opaciteVolume }}
+              />
+            )}
+            {montrerBord && (
+              <div className="bord-globe" style={{ left: bord.cx - bord.rx, top: bord.cy - bord.ry, width: 2 * bord.rx, height: 2 * bord.ry }} />
+            )}
+            {nomsAffiches.length > 0 && (
+              <div className="noms-pays" aria-hidden="true">
+                {nomsAffiches.map((d) => (
+                  <div
+                    key={d.nom}
+                    className="nom-pays"
+                    style={{
+                      fontSize: d.zoomMin <= 2 ? 15 : d.zoomMin <= 3 ? 13 : 12,
+                      transform: `translate(${d.x}px, ${d.y}px) translate(-50%, -50%) scale(${d.grossissement})`,
+                      opacity: OPACITE_NOMS * d.opacite,
+                    }}
+                  >
+                    {etiquette(d.nom)}
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         )}
         <Habillage
